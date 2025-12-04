@@ -1,4 +1,4 @@
-import pg from 'pg';
+import pg, { QueryResultRow } from 'pg';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -24,8 +24,8 @@ pool.on('error', (err) => {
 });
 
 // Query helper with logging
-export async function query<T = unknown>(
-  text: string, 
+export async function query<T extends QueryResultRow = QueryResultRow>(
+  text: string,
   params?: unknown[]
 ): Promise<pg.QueryResult<T>> {
   const start = Date.now();
