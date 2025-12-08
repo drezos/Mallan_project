@@ -151,7 +151,7 @@ interface TotalMarketCardProps {
   isHealthy: boolean
 }
 
-export function TotalMarketCard({ volume, growth, trend, isHealthy }: TotalMarketCardProps) {
+export function TotalMarketCard({ volume, growth, isHealthy }: TotalMarketCardProps) {
   return (
     <div className="card p-5 opacity-0 animate-slide-up animation-delay-200">
       <div className="flex items-start justify-between">
