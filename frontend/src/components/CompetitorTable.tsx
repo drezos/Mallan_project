@@ -84,7 +84,7 @@ export function CompetitorTable({ competitors, brandData }: CompetitorTableProps
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-50">
-            {allEntities.map((entity, index) => {
+            {allEntities.map((entity) => {
               const statusClasses = getStatusClasses(entity.status as 'normal' | 'watching' | 'threat')
               const isYourBrand = 'isYourBrand' in entity && entity.isYourBrand
 
