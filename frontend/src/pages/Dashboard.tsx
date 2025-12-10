@@ -85,29 +85,33 @@ export function Dashboard() {
           ZONE 3: Threat Intelligence (Bottom Row - 2/3 + 1/3)
           =========================================== */}
       <section>
-        <h2 className="text-lg font-display font-semibold text-slate-800 mb-4 opacity-0 animate-fade-in animation-delay-400">
-          Competitive Roast
-        </h2>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          {/* Left Panel: Competitor Snapshot (2/3) */}
-          <div className="lg:col-span-2">
-            <CompetitorTable
-              competitors={mockCompetitors}
-              brandData={mockBrandData}
-            />
-          </div>
-
-          {/* Right Panel: Competitive Trend Chart (1/3) */}
-          <div className="lg:col-span-1">
-            <CompetitiveTrendChart
-              data={mockCompetitiveTrendData}
-              brandName="Jacks.nl"
-              competitors={mockCompetitors.map(c => c.name)}
-              topRivals={topRivals}
-            />
-          </div>
-        </div>
-      </section>
+  <h2 className="text-lg font-display font-semibold text-slate-800 mb-4 opacity-0 animate-fade-in animation-delay-400">
+    Competitive Roast
+  </h2>
+  
+  {/* Row 1: Table (2/3) + Anomalies (1/3) */}
+  <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
+    <div className="lg:col-span-2">
+      <CompetitorTable
+        competitors={mockCompetitors}
+        brandData={mockBrandData}
+      />
+    </div>
+    <div className="lg:col-span-1">
+      <AnomaliesPanel anomalies={mockAnomalies} />
+    </div>
+  </div>
+  
+  {/* Row 2: Trend Chart (Full Width) */}
+  <div className="w-full">
+    <CompetitiveTrendChart
+      data={mockCompetitiveTrendData}
+      brandName="Jacks.nl"
+      competitors={mockCompetitors.map(c => c.name)}
+      topRivals={topRivals}
+    />
+  </div>
+</section>
 
       {/* Market Anomalies - Full Width Below */}
       <section>
