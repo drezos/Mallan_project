@@ -1,16 +1,15 @@
-import { 
+import {
   ComposedChart,
-  Area, 
+  Area,
   Line,
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
   ResponsiveContainer,
   BarChart,
-  Bar,
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-} from 'recharts'
+  Bar
+} from 'recharts';
 import { TrendingUp, TrendingDown } from 'lucide-react'
 import { cn, formatNumber } from '../lib/utils'
 
