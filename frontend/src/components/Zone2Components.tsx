@@ -9,7 +9,7 @@ import {
   ResponsiveContainer,
   BarChart,
   Bar,
-  Cell,
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 } from 'recharts'
 import { TrendingUp, TrendingDown } from 'lucide-react'
 import { cn, formatNumber } from '../lib/utils'
