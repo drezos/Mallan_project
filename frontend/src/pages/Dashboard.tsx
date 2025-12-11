@@ -112,13 +112,6 @@ export function Dashboard() {
     />
   </div>
 </section>
-
-      {/* Market Anomalies - Full Width Below */}
-      <section>
-        <div className="max-w-md">
-          <AnomaliesPanel anomalies={mockAnomalies} />
-        </div>
-      </section>
     </div>
   )
 }
