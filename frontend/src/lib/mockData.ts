@@ -2,6 +2,21 @@
 // This will be replaced with real API calls once connected
 
 // ===========================================
+// HELPER FUNCTIONS (exported for components)
+// ===========================================
+
+export function getVelocityStatus(weeklyChange: number): 'accelerating' | 'stable' | 'decelerating' {
+  if (weeklyChange > 10) return 'accelerating';
+  if (weeklyChange < -5) return 'decelerating';
+  return 'stable';
+}
+
+export function calculateSoS(volume: number, totalMarket: number): number {
+  if (totalMarket === 0) return 0;
+  return (volume / totalMarket) * 100;
+}
+
+// ===========================================
 // BRAND DATA
 // ===========================================
 export const mockBrandData = {
@@ -25,8 +40,10 @@ export const mockShareOfSearch = {
 // ===========================================
 export const mockMarketRank = {
   current: 6,
+  previous: 7,
+  change: 1,
   total: 10,
-  change: 1, // moved up 1 position
+  totalCompetitors: 10,
 };
 
 // ===========================================
@@ -43,18 +60,18 @@ export const mockMarketOpportunity = {
 // TAM TREND DATA (Zone 2 Right Panel)
 // ===========================================
 export const mockTAMTrendData = [
-  { week: 'W1', total: 165000, yourBrand: 12100, competitors: 110500, generic: 42400 },
-  { week: 'W2', total: 168000, yourBrand: 12400, competitors: 112800, generic: 42800 },
-  { week: 'W3', total: 170500, yourBrand: 12800, competitors: 114200, generic: 43500 },
-  { week: 'W4', total: 172000, yourBrand: 13100, competitors: 115600, generic: 43300 },
-  { week: 'W5', total: 169000, yourBrand: 12900, competitors: 113100, generic: 43000 },
-  { week: 'W6', total: 174500, yourBrand: 13400, competitors: 117400, generic: 43700 },
-  { week: 'W7', total: 176000, yourBrand: 13700, competitors: 118500, generic: 43800 },
-  { week: 'W8', total: 178500, yourBrand: 14000, competitors: 120200, generic: 44300 },
-  { week: 'W9', total: 175000, yourBrand: 13600, competitors: 118100, generic: 43300 },
-  { week: 'W10', total: 180000, yourBrand: 14200, competitors: 121800, generic: 44000 },
-  { week: 'W11', total: 182500, yourBrand: 14500, competitors: 123400, generic: 44600 },
-  { week: 'W12', total: 185400, yourBrand: 14800, competitors: 125400, generic: 45200 },
+  { week: 'W1', yourBrand: 12100, tam: 165000 },
+  { week: 'W2', yourBrand: 12400, tam: 168000 },
+  { week: 'W3', yourBrand: 12800, tam: 170500 },
+  { week: 'W4', yourBrand: 13100, tam: 172000 },
+  { week: 'W5', yourBrand: 12900, tam: 169000 },
+  { week: 'W6', yourBrand: 13400, tam: 174500 },
+  { week: 'W7', yourBrand: 13700, tam: 176000 },
+  { week: 'W8', yourBrand: 14000, tam: 178500 },
+  { week: 'W9', yourBrand: 13600, tam: 175000 },
+  { week: 'W10', yourBrand: 14200, tam: 180000 },
+  { week: 'W11', yourBrand: 14500, tam: 182500 },
+  { week: 'W12', yourBrand: 14800, tam: 185400 },
 ];
 
 export const mockTAM = {
