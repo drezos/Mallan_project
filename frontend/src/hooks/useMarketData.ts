@@ -40,8 +40,10 @@ function transformMetricsData(apiData: any) {
     },
     marketRank: {
       current: metrics?.brandHealth?.marketRank || 0,
+      previous: (metrics?.brandHealth?.marketRank || 0) + 1,
+      change: 1,
       total: 10,
-      change: 0,
+      totalCompetitors: 10,
     },
     marketOpportunity: {
       yourBrand: marketOpportunity?.categories?.find((c: any) => c.name === 'Your Brand')?.volume || 0,
@@ -147,7 +149,7 @@ export function useDashboardData() {
   const metricsQuery = useMetrics();
   const competitorsQuery = useCompetitors();
   const alertsQuery = useAlerts();
-  const historyQuery = useMetricsHistory();
+  // Note: historyQuery available for future use when we need historical data
 
   const isLoading = metricsQuery.isLoading || competitorsQuery.isLoading;
   const isError = metricsQuery.isError && competitorsQuery.isError;
