@@ -1,78 +1,143 @@
-import express from 'express';
+// MarketPulse Backend Server
+// Express.js API for iGaming Market Intelligence
+
+import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
-import helmet from 'helmet';
 import dotenv from 'dotenv';
 
+// Load environment variables
 dotenv.config();
 
-import metricsRoutes from './routes/metrics.js';
-import competitorsRoutes from './routes/competitors.js';
-import alertsRoutes from './routes/alerts.js';
-import healthRoutes from './routes/health.js';
-import config from './config/app.config.js';
+// Import routes
+import metricsRouter from './routes/metrics';
+import competitorsRouter from './routes/competitors';
+import alertsRouter from './routes/alerts';
 
+// Initialize Express app
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware
-app.use(helmet());
+// ===========================================
+// MIDDLEWARE
+// ===========================================
+
+// CORS - Allow requests from Vercel frontend
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
-  methods: ['GET', 'POST', 'PATCH', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  origin: [
+    'http://localhost:5173',
+    'http://localhost:3000',
+    'https://mallan-project.vercel.app',
+    /\.vercel\.app$/  // Allow all Vercel preview deployments
+  ],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true
 }));
+
+// JSON body parser
 app.use(express.json());
 
-if (process.env.NODE_ENV !== 'production') {
-  app.use((req, _res, next) => {
-    console.log(`${req.method} ${req.path}`);
-    next();
+// Request logging
+app.use((req: Request, res: Response, next: NextFunction) => {
+  const timestamp = new Date().toISOString();
+  console.log(`[${timestamp}] ${req.method} ${req.path}`);
+  next();
+});
+
+// ===========================================
+// ROUTES
+// ===========================================
+
+// Health check endpoint
+app.get('/api/health', (req: Request, res: Response) => {
+  res.json({
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    version: '1.0.0',
+    environment: process.env.NODE_ENV || 'development',
+    dataForSeoConfigured: !!(process.env.DATAFORSEO_LOGIN && process.env.DATAFORSEO_PASSWORD)
   });
-}
+});
 
-// Routes
-app.use('/api', healthRoutes);
-app.use('/api/metrics', metricsRoutes);
-app.use('/api/competitors', competitorsRoutes);
-app.use('/api/alerts', alertsRoutes);
-
-// Root route
-app.get('/', (_req, res) => {
+// API info endpoint
+app.get('/api', (req: Request, res: Response) => {
   res.json({
     name: 'MarketPulse API',
     version: '1.0.0',
-    description: 'Real-time iGaming market intelligence platform',
+    description: 'Real-time iGaming market intelligence for Netherlands operators',
     endpoints: {
-      health: '/api/health',
-      status: '/api/status',
-      config: '/api/config',
-      metrics: '/api/metrics',
-      metricsHistory: '/api/metrics/history',
-      metricsSummary: '/api/metrics/summary',
-      competitors: '/api/competitors',
-      competitorDetail: '/api/competitors/:id',
-      alerts: '/api/alerts',
-      alertCount: '/api/alerts/count'
-    }
+      health: 'GET /api/health',
+      metrics: 'GET /api/metrics',
+      metricsHistory: 'GET /api/metrics/history',
+      metricsRefresh: 'GET /api/metrics/refresh',
+      competitors: 'GET /api/competitors',
+      competitorDetail: 'GET /api/competitors/:name',
+      alerts: 'GET /api/alerts',
+      alertsHighPriority: 'GET /api/alerts/high-priority'
+    },
+    region: 'Netherlands',
+    brand: 'Jacks.nl'
   });
 });
 
-// 404 handler
-app.use((_req, res) => {
-  res.status(404).json({ error: 'Not Found' });
+// Mount route handlers
+app.use('/api/metrics', metricsRouter);
+app.use('/api/competitors', competitorsRouter);
+app.use('/api/alerts', alertsRouter);
+
+// Root redirect to API info
+app.get('/', (req: Request, res: Response) => {
+  res.redirect('/api');
 });
 
-// Start server
+// ===========================================
+// ERROR HANDLING
+// ===========================================
+
+// 404 handler
+app.use((req: Request, res: Response) => {
+  res.status(404).json({
+    success: false,
+    error: 'Not Found',
+    message: `Endpoint ${req.method} ${req.path} does not exist`,
+    availableEndpoints: '/api'
+  });
+});
+
+// Global error handler
+app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
+  console.error('Unhandled error:', err);
+  res.status(500).json({
+    success: false,
+    error: 'Internal Server Error',
+    message: process.env.NODE_ENV === 'development' ? err.message : 'Something went wrong'
+  });
+});
+
+// ===========================================
+// START SERVER
+// ===========================================
+
 app.listen(PORT, () => {
-  console.log('\n🚀 MarketPulse API Server Started');
-  console.log('=====================================');
-  console.log(`📍 Server running on http://localhost:${PORT}`);
-  console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`🎰 Brand: ${config.brand.name}`);
-  console.log(`🏆 Competitors: ${config.competitors.length}`);
-  console.log(`📊 Intent Keywords: ${Object.values(config.intentKeywords).flat().length}`);
-  console.log(`🇳🇱 Market: ${config.market.regionName}`);
-  console.log('=====================================\n');
+  console.log('');
+  console.log('===========================================');
+  console.log('  MarketPulse API Server');
+  console.log('===========================================');
+  console.log(`  Port: ${PORT}`);
+  console.log(`  Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`  DataForSEO: ${process.env.DATAFORSEO_LOGIN ? '✅ Configured' : '❌ Not configured (using mock data)'}`);
+  console.log('');
+  console.log('  Endpoints:');
+  console.log('    GET /api/health');
+  console.log('    GET /api/metrics');
+  console.log('    GET /api/metrics/history');
+  console.log('    GET /api/metrics/refresh');
+  console.log('    GET /api/competitors');
+  console.log('    GET /api/competitors/:name');
+  console.log('    GET /api/alerts');
+  console.log('    GET /api/alerts/high-priority');
+  console.log('');
+  console.log('===========================================');
 });
 
 export default app;
