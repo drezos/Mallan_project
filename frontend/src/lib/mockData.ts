@@ -5,13 +5,17 @@
 // HELPER FUNCTIONS (exported for components)
 // ===========================================
 
-export function getVelocityStatus(weeklyChange: number): 'accelerating' | 'stable' | 'decelerating' {
-  if (weeklyChange > 10) return 'accelerating';
-  if (weeklyChange < -5) return 'decelerating';
+// Total market volume for SoS calculations
+const TOTAL_MARKET_VOLUME = 185400;
+
+export function getVelocityStatus(growth: number): 'surge' | 'moderate' | 'stable' {
+  const absGrowth = Math.abs(growth);
+  if (absGrowth > 20) return 'surge';
+  if (absGrowth > 5) return 'moderate';
   return 'stable';
 }
 
-export function calculateSoS(volume: number, totalMarket: number): number {
+export function calculateSoS(volume: number, totalMarket: number = TOTAL_MARKET_VOLUME): number {
   if (totalMarket === 0) return 0;
   return (volume / totalMarket) * 100;
 }
@@ -86,94 +90,117 @@ export const mockTAMGrowth = 12.4;
 // ===========================================
 export const mockCompetitors = [
   {
-    id: 1,
+    id: '1',
     name: 'Toto',
     searchVolume: 45200,
+    growth: 5.2,
     weeklyChange: 5.2,
     marketShare: 24.4,
     velocityTrend: 'stable',
     riskLevel: 'medium',
+    status: 'normal' as const,
   },
   {
-    id: 2,
+    id: '2',
     name: 'Holland Casino',
     searchVolume: 38500,
+    growth: -2.1,
     weeklyChange: -2.1,
     marketShare: 20.8,
     velocityTrend: 'decelerating',
     riskLevel: 'low',
+    status: 'normal' as const,
   },
   {
-    id: 3,
+    id: '3',
     name: 'Unibet',
     searchVolume: 22100,
+    growth: 18.5,
     weeklyChange: 18.5,
     marketShare: 11.9,
     velocityTrend: 'accelerating',
     riskLevel: 'high',
+    status: 'watching' as const,
+    driver: 'Sports betting push',
   },
   {
-    id: 4,
+    id: '4',
     name: 'Bet365',
     searchVolume: 18900,
+    growth: 3.2,
     weeklyChange: 3.2,
     marketShare: 10.2,
     velocityTrend: 'stable',
     riskLevel: 'medium',
+    status: 'normal' as const,
   },
   {
-    id: 5,
+    id: '5',
     name: 'BetCity',
     searchVolume: 15200,
+    growth: 8.7,
     weeklyChange: 8.7,
     marketShare: 8.2,
     velocityTrend: 'accelerating',
     riskLevel: 'medium',
+    status: 'watching' as const,
   },
   {
-    id: 6,
+    id: '6',
     name: 'Circus',
     searchVolume: 9800,
+    growth: -5.3,
     weeklyChange: -5.3,
     marketShare: 5.3,
     velocityTrend: 'decelerating',
     riskLevel: 'low',
+    status: 'normal' as const,
   },
   {
-    id: 7,
+    id: '7',
     name: 'Kansino',
     searchVolume: 8200,
+    growth: 25.4,
     weeklyChange: 25.4,
     marketShare: 4.4,
     velocityTrend: 'accelerating',
     riskLevel: 'high',
+    status: 'threat' as const,
+    driver: 'Aggressive TV campaign',
   },
   {
-    id: 8,
+    id: '8',
     name: '711',
     searchVolume: 6500,
+    growth: 1.2,
     weeklyChange: 1.2,
     marketShare: 3.5,
     velocityTrend: 'stable',
     riskLevel: 'low',
+    status: 'normal' as const,
   },
   {
-    id: 9,
+    id: '9',
     name: 'BetMGM',
     searchVolume: 4200,
+    growth: 42.1,
     weeklyChange: 42.1,
     marketShare: 2.3,
     velocityTrend: 'accelerating',
     riskLevel: 'high',
+    status: 'threat' as const,
+    driver: 'Market entry campaign',
   },
   {
-    id: 10,
+    id: '10',
     name: 'LeoVegas',
     searchVolume: 3800,
+    growth: -8.2,
     weeklyChange: -8.2,
     marketShare: 2.1,
     velocityTrend: 'decelerating',
     riskLevel: 'low',
+    status: 'normal' as const,
   },
 ];
 
@@ -199,51 +226,45 @@ export const mockCompetitiveTrendData = [
 export const topRivals = ['Toto', 'Holland Casino', 'Unibet'];
 
 // ===========================================
-// ANOMALIES / ALERTS
+// ANOMALIES / ALERTS (matching AnomaliesPanel interface)
 // ===========================================
 export const mockAnomalies = [
   {
-    id: 1,
-    type: 'emerging_threat',
-    severity: 'high',
+    id: '1',
+    type: 'competitor_surge',
+    impact: 'high' as const,
     title: 'BetMGM Accelerating',
-    message: 'BetMGM search volume up 42% WoW — fastest growing competitor',
-    metric: 'search_volume',
-    value: 4200,
-    change: 42.1,
+    message: 'Search volume up 42% WoW — fastest growing competitor',
+    metric: '+42%',
+    driver: 'Market entry campaign',
     timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
   },
   {
-    id: 2,
+    id: '2',
     type: 'competitor_surge',
-    severity: 'high',
+    impact: 'high' as const,
     title: 'Kansino Breaking Out',
-    message: 'Kansino volume +25% WoW, now threatening your position',
-    metric: 'search_volume',
-    value: 8200,
-    change: 25.4,
+    message: 'Volume +25% WoW, now threatening your position',
+    metric: '+25%',
+    driver: 'TV advertising blitz',
     timestamp: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
   },
   {
-    id: 3,
-    type: 'market_shift',
-    severity: 'medium',
+    id: '3',
+    type: 'competitor_growth',
+    impact: 'info' as const,
     title: 'Unibet Momentum',
-    message: 'Unibet maintaining 18%+ growth for 3 consecutive weeks',
-    metric: 'velocity',
-    value: 22100,
-    change: 18.5,
+    message: 'Maintaining 18%+ growth for 3 consecutive weeks',
+    metric: '+18%',
     timestamp: new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString(),
   },
   {
-    id: 4,
-    type: 'opportunity',
-    severity: 'low',
+    id: '4',
+    type: 'market_trend',
+    impact: 'info' as const,
     title: 'Holland Casino Declining',
     message: 'Market leader losing ground — opportunity to capture share',
-    metric: 'search_volume',
-    value: 38500,
-    change: -2.1,
+    metric: '-2%',
     timestamp: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
   },
 ];
