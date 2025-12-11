@@ -1,86 +1,240 @@
+// Competitors API Routes
+// Returns competitor analysis data from DataForSEO
+
 import { Router, Request, Response } from 'express';
-import type { CompetitorResponse } from '../types/index.js';
+import { dataForSEOService, MarketOverview } from '../services/dataForSeo';
 
 const router = Router();
 
-router.get('/', async (_req: Request, res: Response) => {
-  try {
-    const mockCompetitors: CompetitorResponse[] = [
-      { id: 1, name: 'Toto', searchVolume: 15200, growthRate: 2.5, weeklyTrend: 'stable', riskLevel: 'low', marketShare: 18.5 },
-      { id: 2, name: 'Unibet', searchVolume: 11800, growthRate: -3.2, weeklyTrend: 'down', riskLevel: 'low', marketShare: 14.4 },
-      { id: 3, name: 'Bet365', searchVolume: 11500, growthRate: 8.5, weeklyTrend: 'up', riskLevel: 'medium', marketShare: 14.0 },
-      { id: 4, name: 'BetCity', searchVolume: 9200, growthRate: 25.0, weeklyTrend: 'up', riskLevel: 'high', marketShare: 11.2 },
-      { id: 5, name: 'Holland Casino', searchVolume: 8500, growthRate: 1.2, weeklyTrend: 'stable', riskLevel: 'low', marketShare: 10.4 },
-      { id: 6, name: 'Circus', searchVolume: 5200, growthRate: 4.5, weeklyTrend: 'up', riskLevel: 'low', marketShare: 6.3 },
-      { id: 7, name: '711', searchVolume: 4800, growthRate: -1.8, weeklyTrend: 'down', riskLevel: 'low', marketShare: 5.9 },
-      { id: 8, name: 'Kansino', searchVolume: 4200, growthRate: 12.0, weeklyTrend: 'up', riskLevel: 'medium', marketShare: 5.1 },
-      { id: 9, name: 'BetMGM', searchVolume: 3800, growthRate: 18.5, weeklyTrend: 'up', riskLevel: 'medium', marketShare: 4.6 },
-      { id: 10, name: 'LeoVegas', searchVolume: 3500, growthRate: -0.5, weeklyTrend: 'stable', riskLevel: 'low', marketShare: 4.3 }
-    ];
-    res.json(mockCompetitors);
-  } catch (error) {
-    console.error('Error fetching competitors:', error);
-    res.status(500).json({ error: 'Failed to fetch competitors' });
-  }
-});
+// Share cached data with metrics route
+let cachedMarketData: MarketOverview | null = null;
+let lastFetchTime: number = 0;
+const CACHE_DURATION_MS = 60 * 60 * 1000; // 1 hour
 
-router.get('/:id', async (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
-    const competitors = [
-      { id: 1, name: 'Toto', keywords: ['toto casino', 'toto sport'] },
-      { id: 2, name: 'Unibet', keywords: ['unibet', 'unibet nederland'] },
-      { id: 3, name: 'Bet365', keywords: ['bet365', 'bet365 nederland'] },
-      { id: 4, name: 'BetCity', keywords: ['betcity', 'betcity.nl'] },
-      { id: 5, name: 'Holland Casino', keywords: ['holland casino', 'holland casino online'] },
-      { id: 6, name: 'Circus', keywords: ['circus casino', 'circus.nl'] },
-      { id: 7, name: '711', keywords: ['711 casino', '711.nl'] },
-      { id: 8, name: 'Kansino', keywords: ['kansino', 'kansino.nl'] },
-      { id: 9, name: 'BetMGM', keywords: ['betmgm', 'betmgm nederland'] },
-      { id: 10, name: 'LeoVegas', keywords: ['leovegas', 'leovegas nederland'] }
-    ];
+// ===========================================
+// HELPER FUNCTIONS
+// ===========================================
 
-    const competitor = competitors.find(c => c.id === parseInt(id));
-    if (!competitor) {
-      return res.status(404).json({ error: 'Competitor not found' });
+/**
+ * Calculate velocity status based on growth rate
+ */
+function getVelocityStatus(weeklyChange: number): {
+  status: 'surge' | 'accelerating' | 'stable' | 'declining' | 'dropping';
+  color: string;
+} {
+  if (weeklyChange > 20) return { status: 'surge', color: 'red' };
+  if (weeklyChange > 10) return { status: 'accelerating', color: 'orange' };
+  if (weeklyChange > -5) return { status: 'stable', color: 'gray' };
+  if (weeklyChange > -15) return { status: 'declining', color: 'yellow' };
+  return { status: 'dropping', color: 'red' };
+}
+
+/**
+ * Calculate threat level for a competitor
+ */
+function calculateThreatLevel(
+  competitor: MarketOverview['competitors'][0],
+  avgGrowth: number,
+  stdDev: number
+): 'high' | 'medium' | 'low' {
+  const highThreshold = avgGrowth + (2 * stdDev);
+  const mediumThreshold = avgGrowth + (1 * stdDev);
+  
+  if (competitor.weeklyChange > highThreshold) return 'high';
+  if (competitor.weeklyChange > mediumThreshold) return 'medium';
+  return 'low';
+}
+
+// ===========================================
+// ROUTES
+// ===========================================
+
+/**
+ * GET /api/competitors
+ * Returns list of all tracked competitors with metrics
+ */
+router.get('/', async (req: Request, res: Response) => {
+  try {
+    const now = Date.now();
+    
+    // Check cache
+    if (!cachedMarketData || (now - lastFetchTime) >= CACHE_DURATION_MS) {
+      console.log('Fetching competitor data from DataForSEO...');
+      cachedMarketData = await dataForSEOService.fetchMarketOverview();
+      lastFetchTime = now;
     }
-
-    res.json({
-      id: competitor.id,
-      name: competitor.name,
-      keywords: competitor.keywords,
-      current: {
-        searchVolume: 5000 + Math.floor(Math.random() * 10000),
-        growthRateWeekly: Math.random() * 20 - 5,
-        marketShare: 5 + Math.random() * 15,
-        riskLevel: 'medium'
-      },
-      summary: {
-        avgGrowth12Week: 8.5,
-        trend: 'Growing',
-        threatLevel: 'Medium'
-      },
-      history: []
+    
+    if (!cachedMarketData) {
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to fetch competitor data'
+      });
+    }
+    
+    const data = cachedMarketData;
+    
+    // Calculate market stats for threat assessment
+    const growthRates = data.competitors.map(c => c.weeklyChange);
+    const avgGrowth = growthRates.reduce((a, b) => a + b, 0) / growthRates.length;
+    const variance = growthRates.reduce((sum, rate) => sum + Math.pow(rate - avgGrowth, 2), 0) / growthRates.length;
+    const stdDev = Math.sqrt(variance);
+    
+    // Build competitor list with calculated metrics
+    const competitors = data.competitors
+      .filter(c => c.name !== 'JACKS') // Exclude your own brand from competitor list
+      .map((competitor, index) => {
+        const velocityStatus = getVelocityStatus(competitor.weeklyChange);
+        const threatLevel = calculateThreatLevel(competitor, avgGrowth, stdDev);
+        const marketShare = data.totalMarketVolume > 0
+          ? (competitor.totalVolume / data.totalMarketVolume) * 100
+          : 0;
+        
+        return {
+          id: index + 1,
+          name: competitor.name,
+          keywords: competitor.keywords,
+          metrics: {
+            searchVolume: competitor.totalVolume,
+            marketShare: Math.round(marketShare * 10) / 10,
+            weeklyChange: competitor.weeklyChange,
+            averageValue: competitor.averageValue
+          },
+          velocity: {
+            status: velocityStatus.status,
+            color: velocityStatus.color,
+            value: competitor.weeklyChange
+          },
+          threat: {
+            level: threatLevel,
+            isAnomalous: competitor.weeklyChange > (avgGrowth + 2 * stdDev)
+          },
+          trend: {
+            direction: competitor.weeklyChange > 5 ? 'up' : competitor.weeklyChange < -5 ? 'down' : 'stable',
+            data: competitor.trendData.slice(-8) // Last 8 weeks
+          }
+        };
+      });
+    
+    // Sort by search volume (market size) descending
+    competitors.sort((a, b) => b.metrics.searchVolume - a.metrics.searchVolume);
+    
+    // Add rank
+    competitors.forEach((comp, index) => {
+      (comp as any).rank = index + 1;
     });
-  } catch (error) {
-    console.error('Error fetching competitor detail:', error);
-    res.status(500).json({ error: 'Failed to fetch competitor detail' });
+    
+    res.json({
+      success: true,
+      data: {
+        competitors,
+        summary: {
+          total: competitors.length,
+          highThreat: competitors.filter(c => c.threat.level === 'high').length,
+          mediumThreat: competitors.filter(c => c.threat.level === 'medium').length,
+          avgMarketGrowth: Math.round(avgGrowth * 10) / 10,
+          marketVolatility: Math.round(stdDev * 10) / 10
+        }
+      },
+      meta: {
+        lastUpdated: data.lastUpdated,
+        dataSource: dataForSEOService.isReady() ? 'DataForSEO' : 'Mock Data'
+      }
+    });
+  } catch (error: any) {
+    console.error('Error in /api/competitors:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Internal server error'
+    });
   }
 });
 
-router.get('/data/comparison', async (_req: Request, res: Response) => {
+/**
+ * GET /api/competitors/:name
+ * Returns detailed data for a specific competitor
+ */
+router.get('/:name', async (req: Request, res: Response) => {
   try {
+    const { name } = req.params;
+    const now = Date.now();
+    
+    // Check cache
+    if (!cachedMarketData || (now - lastFetchTime) >= CACHE_DURATION_MS) {
+      cachedMarketData = await dataForSEOService.fetchMarketOverview();
+      lastFetchTime = now;
+    }
+    
+    if (!cachedMarketData) {
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to fetch competitor data'
+      });
+    }
+    
+    // Find the competitor (case-insensitive)
+    const competitor = cachedMarketData.competitors.find(
+      c => c.name.toLowerCase() === name.toLowerCase()
+    );
+    
+    if (!competitor) {
+      return res.status(404).json({
+        success: false,
+        error: `Competitor "${name}" not found`
+      });
+    }
+    
+    // Calculate detailed metrics
+    const data = cachedMarketData;
+    const marketShare = data.totalMarketVolume > 0
+      ? (competitor.totalVolume / data.totalMarketVolume) * 100
+      : 0;
+    
+    const growthRates = data.competitors.map(c => c.weeklyChange);
+    const avgGrowth = growthRates.reduce((a, b) => a + b, 0) / growthRates.length;
+    
+    // Find your brand for comparison
+    const yourBrand = data.competitors.find(c => c.name === 'JACKS');
+    
     res.json({
-      yourBrand: { name: 'Jacks.nl', searchVolume: 6500, marketShare: '7.9' },
-      competitors: [
-        { name: 'Toto', searchVolume: 15200, marketShare: '18.5' },
-        { name: 'Unibet', searchVolume: 11800, marketShare: '14.4' }
-      ],
-      totalMarket: 82000
+      success: true,
+      data: {
+        name: competitor.name,
+        keywords: competitor.keywords,
+        metrics: {
+          searchVolume: competitor.totalVolume,
+          marketShare: Math.round(marketShare * 10) / 10,
+          weeklyChange: competitor.weeklyChange,
+          averageValue: competitor.averageValue,
+          vsMarketAvg: Math.round((competitor.weeklyChange - avgGrowth) * 10) / 10,
+          vsYourBrand: yourBrand 
+            ? Math.round((competitor.weeklyChange - yourBrand.weeklyChange) * 10) / 10 
+            : 0
+        },
+        trendHistory: competitor.trendData,
+        analysis: {
+          trajectory: competitor.weeklyChange > 10 ? 'accelerating' : 
+                     competitor.weeklyChange > 0 ? 'growing' :
+                     competitor.weeklyChange > -10 ? 'stable' : 'declining',
+          riskAssessment: competitor.weeklyChange > (avgGrowth + 10) ? 'high' :
+                         competitor.weeklyChange > avgGrowth ? 'medium' : 'low',
+          recommendation: competitor.weeklyChange > (avgGrowth + 15)
+            ? `${competitor.name} is growing aggressively. Monitor closely and consider competitive response.`
+            : competitor.weeklyChange > avgGrowth
+            ? `${competitor.name} is performing above market average. Keep watching.`
+            : `${competitor.name} is tracking with or below market. No immediate threat.`
+        }
+      },
+      meta: {
+        lastUpdated: data.lastUpdated,
+        dataSource: dataForSEOService.isReady() ? 'DataForSEO' : 'Mock Data'
+      }
     });
-  } catch (error) {
-    console.error('Error fetching comparison:', error);
-    res.status(500).json({ error: 'Failed to fetch comparison' });
+  } catch (error: any) {
+    console.error('Error in /api/competitors/:name:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Internal server error'
+    });
   }
 });
 
