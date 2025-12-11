@@ -30,7 +30,7 @@ export function AnomaliesPanel({ anomalies }: AnomaliesPanelProps) {
   return (
     <div className="card p-4 h-full flex flex-col opacity-0 animate-slide-up animation-delay-500">
       <div className="mb-3">
-        <h3 className="font-display font-semibold text-slate-900 text-sm">Market Anomalies</h3>
+        <h3 className="font-display font-semibold text-slate-900 text-sm">Market Alerts</h3>
         <p className="text-xs text-slate-500">Statistical outliers</p>
       </div>
 

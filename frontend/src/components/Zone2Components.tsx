@@ -36,7 +36,7 @@ export function MarketOpportunityCard({ yourBrand, competitors, generic, total }
   return (
     <div className="card p-5 h-full opacity-0 animate-slide-up animation-delay-200">
       <div className="mb-4">
-        <h3 className="font-display font-semibold text-slate-900">Market Opportunity</h3>
+        <h3 className="font-display font-semibold text-slate-900">Search Volume Overview</h3>
         <p className="text-xs text-slate-500 mt-0.5">Total addressable market breakdown</p>
       </div>
 
@@ -168,7 +168,7 @@ export function TAMTrendChart({ data, totalTAM, tamGrowth, brandName = 'Jacks.nl
       {/* Header with TAM stats */}
       <div className="flex items-start justify-between mb-4">
         <div>
-          <h3 className="font-display font-semibold text-slate-900">Total Addressable Market</h3>
+          <h3 className="font-display font-semibold text-slate-900">Market Opportunity</h3>
           <p className="text-xs text-slate-500 mt-0.5">The Tide (TAM) vs The Boat (Your Brand)</p>
         </div>
         <div className="text-right">

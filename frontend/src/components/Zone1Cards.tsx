@@ -56,8 +56,8 @@ export function ShareOfSearchCard({ current, change, weeklyHistory }: ShareOfSea
       <div className="relative z-10">
         <div className="flex items-start justify-between">
           <div>
-            <p className="text-sm font-medium text-slate-500">Share of Search</p>
-            <p className="text-xs text-slate-400 mt-0.5">Your slice of total market</p>
+            <p className="text-sm font-medium text-slate-500">Market Share</p>
+            <p className="text-xs text-slate-400 mt-0.5">Share of Search</p>
           </div>
         </div>
 
