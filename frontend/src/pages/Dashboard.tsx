@@ -134,7 +134,7 @@ export function Dashboard() {
           <CompetitiveTrendChart
             data={data.competitiveTrendData}
             brandName="Jacks.nl"
-            competitors={data.competitors.map((c: any) => c.name)}
+            competitors={data.competitors.map((c: { name: string }) => c.name)}
             topRivals={data.topRivals}
           />
         </div>
