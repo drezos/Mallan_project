@@ -1,6 +1,5 @@
 // Utility functions for MarketPulse dashboard
 
-import { clsx, type ClassValue } from 'clsx';
 
 // Classname utility (simplified version without clsx dependency)
 export function cn(...classes: (string | undefined | null | false)[]): string {
