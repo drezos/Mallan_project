@@ -4,10 +4,99 @@ import { MarketOpportunityCard, TAMTrendChart } from '../components/Zone2Compone
 import { CompetitorTable } from '../components/CompetitorTable'
 import { CompetitiveTrendChart } from '../components/CompetitiveTrendChart'
 import { AnomaliesPanel } from '../components/AnomaliesPanel'
-import { useDashboardData } from '../hooks/useMarketData'
+import { useMetrics } from '../hooks/useMetrics'
+import { useCompetitors } from '../hooks/useCompetitors'
+import { useAlerts } from '../hooks/useAlerts'
+import {
+  mockBrandData,
+  mockShareOfSearch,
+  mockMarketRank,
+  mockMarketOpportunity,
+  mockTAMTrendData,
+  mockTAM,
+  mockTAMGrowth,
+  mockCompetitors,
+  mockCompetitiveTrendData,
+  topRivals,
+  mockAnomalies,
+} from '../lib/mockData'
 
 export function Dashboard() {
-  const { data, isLoading, isError, refetch } = useDashboardData();
+  const metricsQuery = useMetrics();
+  const competitorsQuery = useCompetitors();
+  const alertsQuery = useAlerts();
+
+  const isLoading = metricsQuery.isLoading || competitorsQuery.isLoading;
+  const isError = metricsQuery.isError && competitorsQuery.isError;
+
+  const refetch = () => {
+    metricsQuery.refetch();
+    competitorsQuery.refetch();
+    alertsQuery.refetch();
+  };
+
+  // Transform API data to component format
+  const transformedData = {
+    brandData: metricsQuery.data?.data?.brand 
+      ? {
+          name: metricsQuery.data.data.brand.name || 'Jacks.nl',
+          searchVolume: metricsQuery.data.data.metrics?.brandHealth?.searchVolume || mockBrandData.searchVolume,
+          growth: metricsQuery.data.data.metrics?.brandHealth?.weeklyChange || mockBrandData.growth,
+          marketShare: metricsQuery.data.data.metrics?.brandHealth?.shareOfSearch || mockBrandData.marketShare,
+        }
+      : mockBrandData,
+    
+    shareOfSearch: metricsQuery.data?.data?.metrics?.brandHealth
+      ? {
+          current: metricsQuery.data.data.metrics.brandHealth.shareOfSearch || mockShareOfSearch.current,
+          change: metricsQuery.data.data.metrics.brandHealth.weeklyChange || mockShareOfSearch.change,
+          weeklyHistory: mockShareOfSearch.weeklyHistory, // Use mock for history
+        }
+      : mockShareOfSearch,
+    
+    marketRank: metricsQuery.data?.data?.metrics?.brandHealth
+      ? {
+          current: metricsQuery.data.data.metrics.brandHealth.marketRank || mockMarketRank.current,
+          previous: (metricsQuery.data.data.metrics.brandHealth.marketRank || mockMarketRank.current) + 1,
+          change: 1,
+          total: 10,
+          totalCompetitors: 10,
+        }
+      : mockMarketRank,
+    
+    marketOpportunity: mockMarketOpportunity,
+    tamTrendData: mockTAMTrendData,
+    tam: mockTAM,
+    tamGrowth: mockTAMGrowth,
+    
+    competitors: competitorsQuery.data?.data?.competitors 
+      ? competitorsQuery.data.data.competitors.map((c: any, index: number) => ({
+          id: String(index + 1),
+          name: c.name,
+          searchVolume: c.searchVolume || 0,
+          growth: c.weeklyChange || 0,
+          status: c.riskLevel === 'high' ? 'threat' : c.riskLevel === 'medium' ? 'watching' : 'normal',
+          marketShare: c.marketShare || 0,
+        }))
+      : mockCompetitors,
+    
+    competitiveTrendData: mockCompetitiveTrendData,
+    topRivals: topRivals,
+    
+    anomalies: alertsQuery.data?.data?.alerts 
+      ? alertsQuery.data.data.alerts.map((a: any) => ({
+          id: a.id,
+          type: a.type,
+          severity: a.severity,
+          title: a.title,
+          message: a.message,
+          metric: a.metric?.name || 'Market',
+          value: a.metric?.value || 0,
+          change: a.metric?.change || 0,
+          timestamp: a.timestamp,
+        }))
+      : mockAnomalies,
+  };
 
   // Loading state
   if (isLoading) {
@@ -64,16 +153,16 @@ export function Dashboard() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Card A: Share of Search (Hero Metric) */}
           <ShareOfSearchCard
-            current={data.shareOfSearch.current}
-            change={data.shareOfSearch.change}
-            weeklyHistory={data.shareOfSearch.weeklyHistory}
+            current={transformedData.shareOfSearch.current}
+            change={transformedData.shareOfSearch.change}
+            weeklyHistory={transformedData.shareOfSearch.weeklyHistory}
           />
           
           {/* Card B: Brand Search Volume with Market Rank */}
           <BrandVolumeCard
-            volume={data.brandData.searchVolume}
-            growth={data.brandData.growth}
-            marketRank={data.marketRank}
+            volume={transformedData.brandData.searchVolume}
+            growth={transformedData.brandData.growth}
+            marketRank={transformedData.marketRank}
           />
         </div>
       </section>
@@ -89,19 +178,19 @@ export function Dashboard() {
           {/* Left Panel: Market Opportunity (1/3) */}
           <div className="lg:col-span-1">
             <MarketOpportunityCard
-              yourBrand={data.marketOpportunity.yourBrand}
-              competitors={data.marketOpportunity.competitors}
-              generic={data.marketOpportunity.generic}
-              total={data.marketOpportunity.total}
+              yourBrand={transformedData.marketOpportunity.yourBrand}
+              competitors={transformedData.marketOpportunity.competitors}
+              generic={transformedData.marketOpportunity.generic}
+              total={transformedData.marketOpportunity.total}
             />
           </div>
 
           {/* Right Panel: TAM Trend Chart (2/3) */}
           <div className="lg:col-span-2">
             <TAMTrendChart
-              data={data.tamTrendData}
-              totalTAM={data.tam.total}
-              tamGrowth={data.tamGrowth}
+              data={transformedData.tamTrendData}
+              totalTAM={transformedData.tam.total}
+              tamGrowth={transformedData.tamGrowth}
               brandName="Jacks.nl"
             />
           </div>
@@ -120,22 +209,22 @@ export function Dashboard() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
           <div className="lg:col-span-2">
             <CompetitorTable
-              competitors={data.competitors}
-              brandData={data.brandData}
+              competitors={transformedData.competitors}
+              brandData={transformedData.brandData}
             />
           </div>
           <div className="lg:col-span-1">
-            <AnomaliesPanel anomalies={data.anomalies} />
+            <AnomaliesPanel anomalies={transformedData.anomalies} />
           </div>
         </div>
         
         {/* Row 2: Trend Chart (Full Width) */}
         <div className="w-full">
           <CompetitiveTrendChart
-            data={data.competitiveTrendData}
+            data={transformedData.competitiveTrendData}
             brandName="Jacks.nl"
-            competitors={data.competitors.map((c: { name: string }) => c.name)}
-            topRivals={data.topRivals}
+            competitors={transformedData.competitors.map((c: { name: string }) => c.name)}
+            topRivals={transformedData.topRivals}
           />
         </div>
       </section>
