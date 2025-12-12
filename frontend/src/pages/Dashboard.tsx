@@ -69,13 +69,13 @@ export function Dashboard() {
     tam: mockTAM,
     tamGrowth: mockTAMGrowth,
     
-    competitors: competitorsQuery.data?.data?.competitors 
+    competitors: competitorsQuery.data?.data?.competitors
       ? competitorsQuery.data.data.competitors.map((c: any, index: number) => ({
           id: String(index + 1),
           name: c.name,
           searchVolume: c.searchVolume || 0,
           growth: c.weeklyChange || 0,
-          status: c.riskLevel === 'high' ? 'threat' : c.riskLevel === 'medium' ? 'watching' : 'normal',
+          status: (c.riskLevel === 'high' ? 'threat' : c.riskLevel === 'medium' ? 'watching' : 'normal') as 'normal' | 'watching' | 'threat',
           marketShare: c.marketShare || 0,
         }))
       : mockCompetitors,
@@ -83,16 +83,14 @@ export function Dashboard() {
     competitiveTrendData: mockCompetitiveTrendData,
     topRivals: topRivals,
     
-    anomalies: alertsQuery.data?.data?.alerts 
+    anomalies: alertsQuery.data?.data?.alerts
       ? alertsQuery.data.data.alerts.map((a: any) => ({
           id: a.id,
           type: a.type,
-          severity: a.severity,
+          impact: (a.severity === 'high' ? 'high' : 'info') as 'high' | 'info',
           title: a.title,
           message: a.message,
           metric: a.metric?.name || 'Market',
-          value: a.metric?.value || 0,
-          change: a.metric?.change || 0,
           timestamp: a.timestamp,
         }))
       : mockAnomalies,
