@@ -1,10 +1,60 @@
 // API Client for MarketPulse
-// Connects to Railway backend and transforms data for frontend components
+// Connects to Railway backend
 
 const API_BASE_URL = 'https://mallanproject-production.up.railway.app';
 
 // ===========================================
-// TYPES - Matching what the backend returns
+// API OBJECT (used by useMarketData.ts)
+// ===========================================
+
+export const api = {
+  async getMetrics() {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/metrics`);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching metrics:', error);
+      return null;
+    }
+  },
+
+  async getCompetitors() {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/competitors`);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching competitors:', error);
+      return null;
+    }
+  },
+
+  async getAlerts(limit = 5) {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/alerts?limit=${limit}`);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching alerts:', error);
+      return null;
+    }
+  },
+
+  async getMetricsHistory(weeks = 12) {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/metrics/history?weeks=${weeks}`);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching metrics history:', error);
+      return null;
+    }
+  },
+};
+
+// ===========================================
+// TYPES
 // ===========================================
 
 export interface ApiResponse<T> {
@@ -88,112 +138,4 @@ export interface Alert {
   timestamp: string;
   actionable: boolean;
   recommendation?: string;
-}
-
-// ===========================================
-// API FUNCTIONS
-// ===========================================
-
-export async function fetchMetrics(): Promise<MetricsData | null> {
-  try {
-    const response = await fetch(`${API_BASE_URL}/api/metrics`);
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    const json: ApiResponse<MetricsData> = await response.json();
-    if (json.success && json.data) {
-      return json.data;
-    }
-    return null;
-  } catch (error) {
-    console.error('Error fetching metrics:', error);
-    return null;
-  }
-}
-
-export async function fetchCompetitors(): Promise<CompetitorData[]> {
-  try {
-    const response = await fetch(`${API_BASE_URL}/api/competitors`);
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    const json: ApiResponse<{ competitors: CompetitorData[] }> = await response.json();
-    if (json.success && json.data?.competitors) {
-      return json.data.competitors;
-    }
-    return [];
-  } catch (error) {
-    console.error('Error fetching competitors:', error);
-    return [];
-  }
-}
-
-export async function fetchAlerts(): Promise<Alert[]> {
-  try {
-    const response = await fetch(`${API_BASE_URL}/api/alerts`);
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    const json: ApiResponse<{ alerts: Alert[] }> = await response.json();
-    if (json.success && json.data?.alerts) {
-      return json.data.alerts;
-    }
-    return [];
-  } catch (error) {
-    console.error('Error fetching alerts:', error);
-    return [];
-  }
-}
-
-// ===========================================
-// HELPER FUNCTIONS
-// ===========================================
-
-export function formatNumber(num: number | undefined | null): string {
-  if (num === undefined || num === null || isNaN(num)) {
-    return '0';
-  }
-  return num.toLocaleString('nl-NL');
-}
-
-export function formatPercent(num: number | undefined | null): string {
-  if (num === undefined || num === null || isNaN(num)) {
-    return '0%';
-  }
-  return `${num >= 0 ? '+' : ''}${num.toFixed(1)}%`;
-}
-
-export function formatScore(num: number | undefined | null): string {
-  if (num === undefined || num === null || isNaN(num)) {
-    return '0.0';
-  }
-  return num.toFixed(1);
-}
-
-export function getTrendColor(trend: string | undefined): string {
-  switch (trend?.toLowerCase()) {
-    case 'growing':
-    case 'gaining':
-    case 'up':
-      return 'text-green-600';
-    case 'declining':
-    case 'losing':
-    case 'down':
-      return 'text-red-600';
-    default:
-      return 'text-gray-600';
-  }
-}
-
-export function getSeverityColor(severity: string | undefined): string {
-  switch (severity?.toLowerCase()) {
-    case 'high':
-      return 'bg-red-100 text-red-800 border-red-200';
-    case 'medium':
-      return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-    case 'low':
-      return 'bg-green-100 text-green-800 border-green-200';
-    default:
-      return 'bg-gray-100 text-gray-800 border-gray-200';
-  }
 }
