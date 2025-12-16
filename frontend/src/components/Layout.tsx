@@ -1,12 +1,13 @@
 import { Outlet, NavLink, useLocation } from 'react-router-dom'
-import { 
-  LayoutDashboard, 
-  Users, 
-  Bell, 
+import {
+  LayoutDashboard,
+  Users,
+  Bell,
   Settings,
   TrendingUp,
   ChevronRight
 } from 'lucide-react'
+import { UserButton } from '@clerk/clerk-react'
 import { cn } from '../lib/utils'
 
 const navigation = [
@@ -112,11 +113,9 @@ export function Layout() {
               <Bell className="w-5 h-5 text-slate-600" />
               <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-ember-500 rounded-full"></span>
             </button>
-            
-            {/* User avatar placeholder */}
-            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-forest-400 to-forest-600 flex items-center justify-center text-white font-medium text-sm">
-              A
-            </div>
+
+            {/* User Button */}
+            <UserButton afterSignOutUrl="/" />
           </div>
         </header>
 
