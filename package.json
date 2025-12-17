@@ -1,7 +1,7 @@
 {
   "name": "marketpulse-backend",
   "version": "1.0.0",
-  "description": "MarketPulse API - Real-time iGaming market intelligence for Netherlands operators",
+  "description": "MarketPulse - iGaming Market Intelligence API",
   "main": "dist/index.js",
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
@@ -13,10 +13,10 @@
     "igaming",
     "market-intelligence",
     "competitive-analysis",
-    "dataforseo"
+    "netherlands"
   ],
-  "author": "MarketPulse",
-  "license": "MIT",
+  "author": "",
+  "license": "ISC",
   "dependencies": {
     "axios": "^1.6.0",
     "cors": "^2.8.5",
