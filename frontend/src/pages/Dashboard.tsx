@@ -19,6 +19,43 @@ import {
   mockAnomalies,
 } from '../lib/mockData'
 
+// Helper function to scale mock trend data to match actual brand volumes
+function generateScaledTrendData(
+  brands: Array<{ brandName: string; volume: number }>,
+  mockTrend: Array<Record<string, number | string>>
+): Array<Record<string, number | string>> {
+  // Create a map of brand name to actual volume
+  const brandVolumeMap: Record<string, number> = {};
+  brands.forEach(b => {
+    brandVolumeMap[b.brandName] = b.volume;
+  });
+
+  // For each brand in mock data, calculate the scale factor to match actual volume
+  const lastWeekData = mockTrend[mockTrend.length - 1];
+  const scaleFactors: Record<string, number> = {};
+
+  Object.keys(lastWeekData).forEach(key => {
+    if (key === 'week') return;
+    const mockValue = lastWeekData[key] as number;
+    const actualValue = brandVolumeMap[key];
+    if (actualValue && mockValue) {
+      scaleFactors[key] = actualValue / mockValue;
+    }
+  });
+
+  // Scale all trend data points
+  return mockTrend.map(weekData => {
+    const scaled: Record<string, number | string> = { week: weekData.week };
+    Object.keys(weekData).forEach(key => {
+      if (key === 'week') return;
+      const value = weekData[key] as number;
+      const scaleFactor = scaleFactors[key] || 1;
+      scaled[key] = Math.round(value * scaleFactor);
+    });
+    return scaled;
+  });
+}
+
 export function Dashboard() {
   const dashboardQuery = useDashboard();
 
@@ -90,7 +127,10 @@ export function Dashboard() {
         }))
       : mockCompetitors,
 
-    competitiveTrendData: mockCompetitiveTrendData,
+    // Generate trend data that matches actual brand volumes
+    competitiveTrendData: dashboardData?.brands
+      ? generateScaledTrendData(dashboardData.brands, mockCompetitiveTrendData)
+      : mockCompetitiveTrendData,
     topRivals: dashboardData?.brands
       ? dashboardData.brands.slice(0, 5).map(b => b.brandName)
       : topRivals,

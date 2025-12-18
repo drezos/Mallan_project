@@ -9,7 +9,7 @@ function getVelocityStatus(change: number): 'accelerating' | 'stable' | 'deceler
   return 'stable';
 }
 
-function calculateSoS(volume: number, totalMarket: number = 45000): number {
+function calculateSoS(volume: number, totalMarket: number): number {
   if (totalMarket === 0) return 0;
   return (volume / totalMarket) * 100;
 }
@@ -49,13 +49,16 @@ export function CompetitorTable({ competitors, brandData }: CompetitorTableProps
     status: c.status || 'normal' as const,
   }));
 
+  // Calculate total market volume from all entities
+  const totalMarketVolume = brandData.searchVolume + normalizedCompetitors.reduce((sum, c) => sum + c.searchVolume, 0);
+
   // Calculate Share of Search for all entities
   const allEntities = [
-    { ...brandData, id: 'your-brand', status: 'normal' as const, isYourBrand: true, shareOfSearch: calculateSoS(brandData.searchVolume) },
-    ...normalizedCompetitors.map(c => ({ 
-      ...c, 
-      isYourBrand: false, 
-      shareOfSearch: calculateSoS(c.searchVolume),
+    { ...brandData, id: 'your-brand', status: 'normal' as const, isYourBrand: true, shareOfSearch: calculateSoS(brandData.searchVolume, totalMarketVolume) },
+    ...normalizedCompetitors.map(c => ({
+      ...c,
+      isYourBrand: false,
+      shareOfSearch: calculateSoS(c.searchVolume, totalMarketVolume),
       growth: c.growth,
     })),
   ]
@@ -148,13 +151,13 @@ export function CompetitorTable({ competitors, brandData }: CompetitorTableProps
                 Brand
               </th>
               <th className="text-right text-xs font-medium text-slate-500 uppercase tracking-wider px-5 py-3">
-                Search Vol.
+                {sortMode === 'volume' ? 'Search Vol.' : 'Velocity'}
               </th>
               <th className="text-right text-xs font-medium text-slate-500 uppercase tracking-wider px-5 py-3">
                 Share
               </th>
               <th className="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-5 py-3 w-44">
-                Velocity
+                {sortMode === 'volume' ? 'Velocity' : 'Search Vol.'}
               </th>
             </tr>
           </thead>
@@ -201,14 +204,29 @@ export function CompetitorTable({ competitors, brandData }: CompetitorTableProps
                     </div>
                   </td>
 
-                  {/* Search Volume */}
+                  {/* Primary Metric (Volume or Velocity based on toggle) */}
                   <td className="px-5 py-3 text-right">
-                    <span className={cn(
-                      'font-mono text-sm font-semibold',
-                      isYourBrand ? 'text-green-700' : 'text-slate-900'
-                    )}>
-                      {formatNumber(entity.searchVolume)}
-                    </span>
+                    {sortMode === 'volume' ? (
+                      <span className={cn(
+                        'font-mono text-sm font-semibold',
+                        isYourBrand ? 'text-green-700' : 'text-slate-900'
+                      )}>
+                        {formatNumber(entity.searchVolume)}
+                      </span>
+                    ) : (
+                      <div className={cn(
+                        'flex items-center gap-1 justify-end',
+                        velocityClasses.text
+                      )}>
+                        {entity.growth > 20 && <AlertTriangle className="w-3.5 h-3.5" />}
+                        {entity.growth > 0 && entity.growth <= 20 && <TrendingUp className="w-3.5 h-3.5" />}
+                        {entity.growth < 0 && <TrendingDown className="w-3.5 h-3.5" />}
+                        {entity.growth === 0 && <Minus className="w-3.5 h-3.5" />}
+                        <span className="font-mono text-sm font-semibold">
+                          {entity.growth > 0 ? '+' : ''}{entity.growth.toFixed(1)}%
+                        </span>
+                      </div>
+                    )}
                   </td>
 
                   {/* Share of Search */}
@@ -221,29 +239,38 @@ export function CompetitorTable({ competitors, brandData }: CompetitorTableProps
                     </span>
                   </td>
 
-                  {/* Velocity Heat Bar */}
+                  {/* Secondary Metric (Velocity bar or Volume based on toggle) */}
                   <td className="px-5 py-3">
-                    <div className="flex items-center gap-3">
-                      <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
-                        <div 
-                          className={cn('h-full rounded-full transition-all duration-500', velocityClasses.bar)}
-                          style={{ width: `${barWidth}%` }}
-                        />
+                    {sortMode === 'volume' ? (
+                      <div className="flex items-center gap-3">
+                        <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                          <div
+                            className={cn('h-full rounded-full transition-all duration-500', velocityClasses.bar)}
+                            style={{ width: `${barWidth}%` }}
+                          />
+                        </div>
+
+                        <div className={cn(
+                          'flex items-center gap-1 min-w-[60px] justify-end',
+                          velocityClasses.text
+                        )}>
+                          {entity.growth > 20 && <AlertTriangle className="w-3.5 h-3.5" />}
+                          {entity.growth > 0 && entity.growth <= 20 && <TrendingUp className="w-3.5 h-3.5" />}
+                          {entity.growth < 0 && <TrendingDown className="w-3.5 h-3.5" />}
+                          {entity.growth === 0 && <Minus className="w-3.5 h-3.5" />}
+                          <span className="font-mono text-xs font-medium">
+                            {entity.growth > 0 ? '+' : ''}{entity.growth.toFixed(1)}%
+                          </span>
+                        </div>
                       </div>
-                      
-                      <div className={cn(
-                        'flex items-center gap-1 min-w-[60px] justify-end',
-                        velocityClasses.text
+                    ) : (
+                      <span className={cn(
+                        'font-mono text-sm font-medium',
+                        isYourBrand ? 'text-green-700' : 'text-slate-600'
                       )}>
-                        {entity.growth > 20 && <AlertTriangle className="w-3.5 h-3.5" />}
-                        {entity.growth > 0 && entity.growth <= 20 && <TrendingUp className="w-3.5 h-3.5" />}
-                        {entity.growth < 0 && <TrendingDown className="w-3.5 h-3.5" />}
-                        {entity.growth === 0 && <Minus className="w-3.5 h-3.5" />}
-                        <span className="font-mono text-xs font-medium">
-                          {entity.growth > 0 ? '+' : ''}{entity.growth.toFixed(1)}%
-                        </span>
-                      </div>
-                    </div>
+                        {formatNumber(entity.searchVolume)}
+                      </span>
+                    )}
                   </td>
                 </tr>
               )
