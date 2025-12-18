@@ -121,7 +121,7 @@ export function Dashboard() {
           id: String(b.rank),
           name: b.brandName,
           searchVolume: b.volume || 0,
-          growth: 0, // Growth not available per brand
+          growth: b.velocity || 0,
           status: 'normal' as 'normal' | 'watching' | 'threat',
           marketShare: b.marketShare || 0,
         }))
