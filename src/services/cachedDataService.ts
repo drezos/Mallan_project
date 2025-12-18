@@ -1,18 +1,139 @@
 import { cacheService, CACHE_DURATIONS, CACHE_KEYS } from '../db/cache';
-
-// Import your existing DataForSEO service
-// Adjust this import path to match your project structure
 import { dataForSEOService } from './dataForSeo';
+import {
+  calculateAllMetrics
+} from './metricsCalculator';
+import { brands, intentKeywords, getAllIntentKeywords, getOwnBrand } from '../config/brandKeywords';
 
 /**
  * Cached Market Data Service
- * 
+ *
  * Wraps DataForSEO calls with database-backed caching.
  * Only fetches fresh data when cache expires (weekly by default).
- * 
+ *
  * This prevents burning API credits on every page refresh.
  */
 export const cachedDataService = {
+  /**
+   * Build fresh dashboard data from DataForSEO
+   */
+  async buildDashboardData(): Promise<any> {
+    console.log('🚀 Building complete dashboard data...');
+
+    // Fetch brand volumes
+    const brandVolumes = await dataForSEOService.getBrandSearchVolumes();
+    brandVolumes.sort((a, b) => b.totalVolume - a.totalVolume);
+
+    const totalMarketVolume = brandVolumes.reduce((sum, b) => sum + b.totalVolume, 0);
+    const ownBrand = getOwnBrand();
+    const ownBrandData = brandVolumes.find(b => b.brandId === ownBrand?.id);
+
+    // Fetch trends for top 5 brands
+    const trends = await dataForSEOService.getBrandTrends();
+
+    // Fetch intent volumes
+    const allIntentKeywords = getAllIntentKeywords();
+    const intentVolumes = await dataForSEOService.getSearchVolume(allIntentKeywords);
+
+    const currentIntentVolumes = new Map<string, number>();
+    intentVolumes.forEach(v => {
+      currentIntentVolumes.set(v.keyword.toLowerCase(), v.searchVolume || 0);
+    });
+
+    // Simulated previous data for metrics calculation
+    const previousBrandData = brandVolumes.map(brand => ({
+      ...brand,
+      totalVolume: Math.round(brand.totalVolume * (0.95 + Math.random() * 0.15))
+    }));
+
+    const previousIntentVolumes = new Map<string, number>();
+    intentVolumes.forEach(v => {
+      previousIntentVolumes.set(v.keyword.toLowerCase(),
+        Math.round((v.searchVolume || 0) * (0.9 + Math.random() * 0.2)));
+    });
+
+    // Calculate metrics
+    const metrics = calculateAllMetrics(
+      brandVolumes,
+      previousBrandData,
+      [previousBrandData],
+      currentIntentVolumes,
+      previousIntentVolumes
+    );
+
+    // Build dashboard response
+    return {
+      // Overview metrics
+      overview: {
+        totalMarketVolume,
+        yourBrand: {
+          name: ownBrand?.displayName,
+          volume: ownBrandData?.totalVolume || 0,
+          marketShare: totalMarketVolume > 0
+            ? Math.round((ownBrandData?.totalVolume || 0) / totalMarketVolume * 1000) / 10
+            : 0
+        },
+        marketShareMomentum: metrics.marketShareMomentum,
+        competitivePressure: metrics.competitivePressureIndex,
+        playerSentiment: metrics.playerSentimentVelocity
+      },
+
+      // Brand rankings
+      brands: brandVolumes.map((brand, index) => ({
+        rank: index + 1,
+        brandId: brand.brandId,
+        brandName: brand.brandName,
+        volume: brand.totalVolume,
+        marketShare: totalMarketVolume > 0
+          ? Math.round(brand.totalVolume / totalMarketVolume * 1000) / 10
+          : 0,
+        isOwnBrand: brand.brandId === ownBrand?.id,
+        color: brands.find(b => b.id === brand.brandId)?.color
+      })),
+
+      // Trends
+      trends: trends,
+
+      // Intent breakdown
+      intentCategories: intentKeywords.map(category => {
+        let totalVolume = 0;
+        category.keywords.forEach(kw => {
+          totalVolume += currentIntentVolumes.get(kw.toLowerCase()) || 0;
+        });
+        return {
+          category: category.category,
+          displayName: category.displayName,
+          volume: totalVolume
+        };
+      }),
+
+      // Alerts
+      alerts: [
+        ...metrics.emergingCompetitorAlerts
+          .filter(a => a.severity !== 'none')
+          .slice(0, 5)
+          .map(a => ({
+            type: 'competitor',
+            severity: a.severity,
+            message: a.message
+          })),
+        ...metrics.intentShiftIndex
+          .filter(i => i.severity !== 'none')
+          .map(i => ({
+            type: 'intent',
+            severity: i.severity,
+            message: `${i.displayName}: ${i.changePercent > 0 ? '+' : ''}${i.changePercent}% - ${i.interpretation}`
+          }))
+      ],
+
+      // Full metrics for detail views
+      metrics,
+
+      // Metadata
+      fetchedAt: new Date().toISOString()
+    };
+  },
+
   /**
    * Get full dashboard data
    * Refreshes weekly (every 7 days)
@@ -23,11 +144,12 @@ export const cachedDataService = {
     // Check cache first (unless forcing refresh)
     if (!forceRefresh) {
       const cached = await cacheService.get(cacheKey);
-      
+
       if (cached && !cached.is_expired) {
         console.log(`📦 Serving cached dashboard data (expires: ${cached.expires_at.toISOString()})`);
+        const data = cached.data as Record<string, unknown>;
         return {
-          ...cached.data,
+          ...data,
           _meta: {
             source: 'cache',
             cached_at: cached.cached_at,
@@ -35,7 +157,7 @@ export const cachedDataService = {
           }
         };
       }
-      
+
       // If cached but expired, log it
       if (cached?.is_expired) {
         console.log('📦 Cache expired, fetching fresh data...');
@@ -47,12 +169,12 @@ export const cachedDataService = {
     // Fetch fresh data from DataForSEO
     try {
       console.log('🌐 Fetching fresh data from DataForSEO...');
-      const freshData = await dataForSEOService.fetchMarketOverview();
-      
+      const freshData = await this.buildDashboardData();
+
       if (freshData) {
         // Cache for 1 week
         await cacheService.set(cacheKey, freshData, CACHE_DURATIONS.WEEKLY);
-        
+
         return {
           ...freshData,
           _meta: {
@@ -67,8 +189,9 @@ export const cachedDataService = {
       const staleCache = await cacheService.get(cacheKey);
       if (staleCache) {
         console.log('⚠️ Using stale cache as fallback');
+        const staleData = staleCache.data as Record<string, unknown>;
         return {
-          ...staleCache.data,
+          ...staleData,
           _meta: {
             source: 'stale_cache',
             cached_at: staleCache.cached_at,
@@ -81,13 +204,14 @@ export const cachedDataService = {
       return null;
     } catch (error) {
       console.error('❌ Error fetching dashboard data:', error);
-      
+
       // Return stale cache on error
       const staleCache = await cacheService.get(cacheKey);
       if (staleCache) {
         console.log('⚠️ Using stale cache due to error');
+        const staleData = staleCache.data as Record<string, unknown>;
         return {
-          ...staleCache.data,
+          ...staleData,
           _meta: {
             source: 'stale_cache',
             cached_at: staleCache.cached_at,
@@ -95,7 +219,7 @@ export const cachedDataService = {
           }
         };
       }
-      
+
       throw error;
     }
   },
@@ -149,10 +273,11 @@ export const cachedDataService = {
     }
 
     try {
-      // This would call your DataForSEO intent analysis method
-      const freshData = await dataForSEOService.getIntentAnalysis?.();
-      
-      if (freshData) {
+      // Fetch intent keyword volumes using getSearchVolume
+      const allIntentKeywords = getAllIntentKeywords();
+      const freshData = await dataForSEOService.getSearchVolume(allIntentKeywords);
+
+      if (freshData && freshData.length > 0) {
         await cacheService.set(cacheKey, freshData, CACHE_DURATIONS.WEEKLY);
         return freshData;
       }
