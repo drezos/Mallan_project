@@ -79,17 +79,26 @@ export const cachedDataService = {
       },
 
       // Brand rankings
-      brands: brandVolumes.map((brand, index) => ({
-        rank: index + 1,
-        brandId: brand.brandId,
-        brandName: brand.brandName,
-        volume: brand.totalVolume,
-        marketShare: totalMarketVolume > 0
-          ? Math.round(brand.totalVolume / totalMarketVolume * 1000) / 10
-          : 0,
-        isOwnBrand: brand.brandId === ownBrand?.id,
-        color: brands.find(b => b.id === brand.brandId)?.color
-      })),
+      brands: brandVolumes.map((brand, index) => {
+        const previousBrand = previousBrandData.find(p => p.brandId === brand.brandId);
+        const previousVolume = previousBrand?.totalVolume || brand.totalVolume;
+        const velocity = previousVolume > 0
+          ? Math.round(((brand.totalVolume - previousVolume) / previousVolume) * 1000) / 10
+          : 0;
+
+        return {
+          rank: index + 1,
+          brandId: brand.brandId,
+          brandName: brand.brandName,
+          volume: brand.totalVolume,
+          marketShare: totalMarketVolume > 0
+            ? Math.round(brand.totalVolume / totalMarketVolume * 1000) / 10
+            : 0,
+          velocity: velocity,
+          isOwnBrand: brand.brandId === ownBrand?.id,
+          color: brands.find(b => b.id === brand.brandId)?.color
+        };
+      }),
 
       // Trends
       trends: trends,
