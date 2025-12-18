@@ -92,10 +92,65 @@ export interface AlertsResponse {
 // API OBJECT
 // ===========================================
 
+export interface DashboardResponse {
+  success: boolean;
+  data: {
+    overview: {
+      totalMarketVolume: number;
+      yourBrand: {
+        name: string;
+        volume: number;
+        marketShare: number;
+      };
+      marketShareMomentum: any;
+      competitivePressure: any;
+      playerSentiment: any;
+    };
+    brands: Array<{
+      rank: number;
+      brandId: string;
+      brandName: string;
+      volume: number;
+      marketShare: number;
+      isOwnBrand: boolean;
+      color?: string;
+    }>;
+    trends: any;
+    intentCategories: Array<{
+      category: string;
+      displayName: string;
+      volume: number;
+    }>;
+    alerts: Array<{
+      type: string;
+      severity: string;
+      message: string;
+    }>;
+    metrics: any;
+    fetchedAt: string;
+    _meta?: {
+      source: string;
+      cached_at: string;
+      expires_at: string;
+    };
+  };
+}
+
 export const api = {
+  async getDashboard(): Promise<DashboardResponse | null> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/market/dashboard`);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching dashboard:', error);
+      return null;
+    }
+  },
+
   async getMetrics(): Promise<MetricsResponse | null> {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/metrics`);
+      const response = await fetch(`${API_BASE_URL}/api/market/metrics`);
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       return await response.json();
     } catch (error) {
