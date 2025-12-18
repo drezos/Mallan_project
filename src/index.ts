@@ -6,10 +6,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 // Import routes
-import healthRouter from './routes/health';
-import metricsRouter from './routes/metrics';
-import competitorsRouter from './routes/competitors';
-import alertsRouter from './routes/alerts';
+import marketRouter from './routes/market';
 
 // Import cache service for initialization
 import { cacheService } from './db/cache';
@@ -28,10 +25,7 @@ app.use((req, res, next) => {
 });
 
 // Routes
-app.use('/api/health', healthRouter);
-app.use('/api/metrics', metricsRouter);
-app.use('/api/competitors', competitorsRouter);
-app.use('/api/alerts', alertsRouter);
+app.use('/api/market', marketRouter);
 
 // Root endpoint
 app.get('/', (req, res) => {
@@ -44,12 +38,14 @@ app.get('/', (req, res) => {
       refresh: 'Manual or 7-day auto-expiry'
     },
     endpoints: {
-      health: '/api/health',
-      metrics: '/api/metrics',
-      cacheStatus: '/api/metrics/cache-status',
-      forceRefresh: '/api/metrics/refresh',
-      competitors: '/api/competitors',
-      alerts: '/api/alerts'
+      status: '/api/market/status',
+      brands: '/api/market/brands',
+      trends: '/api/market/trends',
+      intent: '/api/market/intent',
+      metrics: '/api/market/metrics',
+      dashboard: '/api/market/dashboard',
+      cacheStatus: '/api/market/cache-status',
+      forceRefresh: '/api/market/refresh'
     }
   });
 });

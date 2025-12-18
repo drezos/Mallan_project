@@ -1,12 +1,13 @@
 /**
  * Market Data Routes
- * 
+ *
  * API endpoints for fetching market intelligence data
  */
 
 import { Router, Request, Response } from 'express';
 import { dataForSEOService } from '../services/dataForSeo';
-import { 
+import { cachedDataService } from '../services/cachedDataService';
+import {
   calculateMarketShareMomentum,
   calculateCompetitivePressureIndex,
   calculateEmergingCompetitorAlerts,
@@ -266,130 +267,93 @@ router.get('/metrics', async (req: Request, res: Response) => {
 });
 
 // =============================================================================
-// GET /api/market/dashboard - Get all dashboard data in one call
+// GET /api/market/dashboard - Get all dashboard data in one call (CACHED)
 // =============================================================================
 
 router.get('/dashboard', async (req: Request, res: Response) => {
   try {
-    console.log('🚀 Fetching complete dashboard data...');
+    console.log('🚀 Fetching dashboard data (cached)...');
 
-    // Fetch brand volumes
-    const brandVolumes = await dataForSEOService.getBrandSearchVolumes();
-    brandVolumes.sort((a, b) => b.totalVolume - a.totalVolume);
+    const data = await cachedDataService.getDashboardData();
 
-    const totalMarketVolume = brandVolumes.reduce((sum, b) => sum + b.totalVolume, 0);
-    const ownBrand = getOwnBrand();
-    const ownBrandData = brandVolumes.find(b => b.brandId === ownBrand?.id);
+    if (!data) {
+      return res.status(503).json({
+        success: false,
+        error: 'Unable to fetch dashboard data'
+      });
+    }
 
-    // Fetch trends for top 5 brands
-    const trends = await dataForSEOService.getBrandTrends();
-
-    // Fetch intent volumes
-    const allIntentKeywords = getAllIntentKeywords();
-    const intentVolumes = await dataForSEOService.getSearchVolume(allIntentKeywords);
-    
-    const currentIntentVolumes = new Map<string, number>();
-    intentVolumes.forEach(v => {
-      currentIntentVolumes.set(v.keyword.toLowerCase(), v.searchVolume || 0);
-    });
-
-    // Simulated previous data for metrics calculation
-    const previousBrandData = brandVolumes.map(brand => ({
-      ...brand,
-      totalVolume: Math.round(brand.totalVolume * (0.95 + Math.random() * 0.15))
-    }));
-
-    const previousIntentVolumes = new Map<string, number>();
-    intentVolumes.forEach(v => {
-      previousIntentVolumes.set(v.keyword.toLowerCase(), 
-        Math.round((v.searchVolume || 0) * (0.9 + Math.random() * 0.2)));
-    });
-
-    // Calculate metrics
-    const metrics = calculateAllMetrics(
-      brandVolumes,
-      previousBrandData,
-      [previousBrandData],
-      currentIntentVolumes,
-      previousIntentVolumes
-    );
-
-    // Build dashboard response
     res.json({
       success: true,
-      data: {
-        // Overview metrics
-        overview: {
-          totalMarketVolume,
-          yourBrand: {
-            name: ownBrand?.displayName,
-            volume: ownBrandData?.totalVolume || 0,
-            marketShare: totalMarketVolume > 0 
-              ? Math.round((ownBrandData?.totalVolume || 0) / totalMarketVolume * 1000) / 10
-              : 0
-          },
-          marketShareMomentum: metrics.marketShareMomentum,
-          competitivePressure: metrics.competitivePressureIndex,
-          playerSentiment: metrics.playerSentimentVelocity
-        },
-        
-        // Brand rankings
-        brands: brandVolumes.map((brand, index) => ({
-          rank: index + 1,
-          brandId: brand.brandId,
-          brandName: brand.brandName,
-          volume: brand.totalVolume,
-          marketShare: totalMarketVolume > 0 
-            ? Math.round(brand.totalVolume / totalMarketVolume * 1000) / 10
-            : 0,
-          isOwnBrand: brand.brandId === ownBrand?.id,
-          color: brands.find(b => b.id === brand.brandId)?.color
-        })),
-
-        // Trends
-        trends: trends,
-
-        // Intent breakdown
-        intentCategories: intentKeywords.map(category => {
-          let totalVolume = 0;
-          category.keywords.forEach(kw => {
-            totalVolume += currentIntentVolumes.get(kw.toLowerCase()) || 0;
-          });
-          return {
-            category: category.category,
-            displayName: category.displayName,
-            volume: totalVolume
-          };
-        }),
-
-        // Alerts
-        alerts: [
-          ...metrics.emergingCompetitorAlerts
-            .filter(a => a.severity !== 'none')
-            .slice(0, 5)
-            .map(a => ({
-              type: 'competitor',
-              severity: a.severity,
-              message: a.message
-            })),
-          ...metrics.intentShiftIndex
-            .filter(i => i.severity !== 'none')
-            .map(i => ({
-              type: 'intent',
-              severity: i.severity,
-              message: `${i.displayName}: ${i.changePercent > 0 ? '+' : ''}${i.changePercent}% - ${i.interpretation}`
-            }))
-        ],
-
-        // Full metrics for detail views
-        metrics,
-
-        // Metadata
-        fetchedAt: new Date().toISOString()
-      }
+      data
     });
   } catch (error: any) {
     console.error('❌ Error fetching dashboard:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// =============================================================================
+// GET /api/market/cache-status - Check cache status
+// =============================================================================
+
+router.get('/cache-status', async (req: Request, res: Response) => {
+  try {
+    const status = await cachedDataService.getCacheStatus();
+
+    res.json({
+      success: true,
+      data: {
+        entries: status.entries,
+        nextRefresh: status.next_refresh,
+        message: status.next_refresh
+          ? `Next auto-refresh in ${status.next_refresh.hours}h ${status.next_refresh.minutes}m`
+          : 'Cache is empty or expired - next request will fetch fresh data'
+      }
+    });
+  } catch (error: any) {
+    console.error('❌ Error fetching cache status:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// =============================================================================
+// GET /api/market/refresh - Force refresh cached data (warns about API cost)
+// =============================================================================
+
+router.get('/refresh', async (req: Request, res: Response) => {
+  try {
+    const confirm = req.query.confirm === 'true';
+
+    if (!confirm) {
+      return res.json({
+        success: false,
+        warning: '⚠️ This will make DataForSEO API calls which cost money!',
+        message: 'Add ?confirm=true to proceed with refresh',
+        estimatedCost: '~$0.10 - $0.50 depending on keywords'
+      });
+    }
+
+    console.log('🔄 Force refresh requested by user...');
+    const result = await cachedDataService.refreshAll();
+
+    res.json({
+      success: result.success,
+      data: {
+        refreshed: result.refreshed,
+        message: result.success
+          ? `Successfully refreshed: ${result.refreshed.join(', ')}`
+          : 'Refresh failed - check server logs'
+      }
+    });
+  } catch (error: any) {
+    console.error('❌ Error refreshing cache:', error);
     res.status(500).json({
       success: false,
       error: error.message
