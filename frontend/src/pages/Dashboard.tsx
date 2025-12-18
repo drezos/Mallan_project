@@ -4,9 +4,7 @@ import { MarketOpportunityCard, TAMTrendChart } from '../components/Zone2Compone
 import { CompetitorTable } from '../components/CompetitorTable'
 import { CompetitiveTrendChart } from '../components/CompetitiveTrendChart'
 import { AnomaliesPanel } from '../components/AnomaliesPanel'
-import { useMetrics } from '../hooks/useMetrics'
-import { useCompetitors } from '../hooks/useCompetitors'
-import { useAlerts } from '../hooks/useAlerts'
+import { useDashboard } from '../hooks/useDashboard'
 import {
   mockBrandData,
   mockShareOfSearch,
@@ -22,76 +20,90 @@ import {
 } from '../lib/mockData'
 
 export function Dashboard() {
-  const metricsQuery = useMetrics();
-  const competitorsQuery = useCompetitors();
-  const alertsQuery = useAlerts();
+  const dashboardQuery = useDashboard();
 
-  const isLoading = metricsQuery.isLoading || competitorsQuery.isLoading;
-  const isError = metricsQuery.isError && competitorsQuery.isError;
+  const isLoading = dashboardQuery.isLoading;
+  const isError = dashboardQuery.isError;
 
   const refetch = () => {
-    metricsQuery.refetch();
-    competitorsQuery.refetch();
-    alertsQuery.refetch();
+    dashboardQuery.refetch();
   };
+
+  // Get data from dashboard response
+  const dashboardData = dashboardQuery.data?.data;
+
+  // Find own brand's rank from the brands list
+  const ownBrandEntry = dashboardData?.brands?.find(b => b.isOwnBrand);
+  const ownBrandRank = ownBrandEntry?.rank || mockMarketRank.current;
 
   // Transform API data to component format
   const transformedData = {
-    brandData: metricsQuery.data?.data?.brand 
+    brandData: dashboardData?.overview?.yourBrand
       ? {
-          name: metricsQuery.data.data.brand.name || 'Jacks.nl',
-          searchVolume: metricsQuery.data.data.metrics?.brandHealth?.searchVolume || mockBrandData.searchVolume,
-          growth: metricsQuery.data.data.metrics?.brandHealth?.weeklyChange || mockBrandData.growth,
-          marketShare: metricsQuery.data.data.metrics?.brandHealth?.shareOfSearch || mockBrandData.marketShare,
+          name: dashboardData.overview.yourBrand.name || 'Jacks.nl',
+          searchVolume: dashboardData.overview.yourBrand.volume || mockBrandData.searchVolume,
+          growth: mockBrandData.growth, // Growth not in dashboard response, use mock
+          marketShare: dashboardData.overview.yourBrand.marketShare || mockBrandData.marketShare,
         }
       : mockBrandData,
-    
-    shareOfSearch: metricsQuery.data?.data?.metrics?.brandHealth
+
+    shareOfSearch: dashboardData?.overview?.yourBrand
       ? {
-          current: metricsQuery.data.data.metrics.brandHealth.shareOfSearch || mockShareOfSearch.current,
-          change: metricsQuery.data.data.metrics.brandHealth.weeklyChange || mockShareOfSearch.change,
-          weeklyHistory: mockShareOfSearch.weeklyHistory, // Use mock for history
+          current: dashboardData.overview.yourBrand.marketShare || mockShareOfSearch.current,
+          change: mockShareOfSearch.change, // Change not in dashboard response
+          weeklyHistory: mockShareOfSearch.weeklyHistory,
         }
       : mockShareOfSearch,
-    
-    marketRank: metricsQuery.data?.data?.metrics?.brandHealth
+
+    marketRank: dashboardData?.brands
       ? {
-          current: metricsQuery.data.data.metrics.brandHealth.marketRank || mockMarketRank.current,
-          previous: (metricsQuery.data.data.metrics.brandHealth.marketRank || mockMarketRank.current) + 1,
+          current: ownBrandRank,
+          previous: ownBrandRank + 1,
           change: 1,
-          total: 10,
-          totalCompetitors: 10,
+          total: dashboardData.brands.length,
+          totalCompetitors: dashboardData.brands.length,
         }
       : mockMarketRank,
-    
-    marketOpportunity: mockMarketOpportunity,
+
+    marketOpportunity: dashboardData?.overview
+      ? {
+          yourBrand: dashboardData.overview.yourBrand?.volume || mockMarketOpportunity.yourBrand,
+          competitors: dashboardData.overview.totalMarketVolume - (dashboardData.overview.yourBrand?.volume || 0),
+          generic: mockMarketOpportunity.generic,
+          total: dashboardData.overview.totalMarketVolume || mockMarketOpportunity.total,
+        }
+      : mockMarketOpportunity,
     tamTrendData: mockTAMTrendData,
-    tam: mockTAM,
+    tam: dashboardData?.overview
+      ? { total: dashboardData.overview.totalMarketVolume, growth: mockTAM.growth }
+      : mockTAM,
     tamGrowth: mockTAMGrowth,
-    
-    competitors: competitorsQuery.data?.data?.competitors
-      ? competitorsQuery.data.data.competitors.map((c: any, index: number) => ({
-          id: String(index + 1),
-          name: c.name,
-          searchVolume: c.searchVolume || 0,
-          growth: c.weeklyChange || 0,
-          status: (c.riskLevel === 'high' ? 'threat' : c.riskLevel === 'medium' ? 'watching' : 'normal') as 'normal' | 'watching' | 'threat',
-          marketShare: c.marketShare || 0,
+
+    competitors: dashboardData?.brands
+      ? dashboardData.brands.map((b) => ({
+          id: String(b.rank),
+          name: b.brandName,
+          searchVolume: b.volume || 0,
+          growth: 0, // Growth not available per brand
+          status: 'normal' as 'normal' | 'watching' | 'threat',
+          marketShare: b.marketShare || 0,
         }))
       : mockCompetitors,
-    
+
     competitiveTrendData: mockCompetitiveTrendData,
-    topRivals: topRivals,
-    
-    anomalies: alertsQuery.data?.data?.alerts
-      ? alertsQuery.data.data.alerts.map((a: any) => ({
-          id: a.id,
+    topRivals: dashboardData?.brands
+      ? dashboardData.brands.slice(0, 5).map(b => b.brandName)
+      : topRivals,
+
+    anomalies: dashboardData?.alerts?.length
+      ? dashboardData.alerts.map((a, index) => ({
+          id: String(index + 1),
           type: a.type,
           impact: (a.severity === 'high' ? 'high' : 'info') as 'high' | 'info',
-          title: a.title,
+          title: a.message.split(':')[0] || 'Alert',
           message: a.message,
-          metric: a.metric?.name || 'Market',
-          timestamp: a.timestamp,
+          metric: a.type === 'competitor' ? 'Search Volume' : 'Intent Shift',
+          timestamp: new Date().toISOString(),
         }))
       : mockAnomalies,
   };
