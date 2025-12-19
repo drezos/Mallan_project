@@ -79,7 +79,7 @@ export function Dashboard() {
       ? {
           name: dashboardData.overview.yourBrand.name || 'Jacks.nl',
           searchVolume: dashboardData.overview.yourBrand.volume || mockBrandData.searchVolume,
-          growth: mockBrandData.growth, // Growth not in dashboard response, use mock
+          growth: ownBrandEntry?.velocity ?? mockBrandData.growth,
           marketShare: dashboardData.overview.yourBrand.marketShare || mockBrandData.marketShare,
         }
       : mockBrandData,
@@ -117,15 +117,17 @@ export function Dashboard() {
     tamGrowth: mockTAMGrowth,
 
     competitors: dashboardData?.brands
-      ? dashboardData.brands.map((b) => ({
-          id: String(b.rank),
-          name: b.brandName,
-          searchVolume: b.volume || 0,
-          growth: b.velocity || 0,
-          status: 'normal' as 'normal' | 'watching' | 'threat',
-          marketShare: b.marketShare || 0,
-        }))
-      : mockCompetitors,
+      ? dashboardData.brands
+          .filter((b) => !b.isOwnBrand) // Exclude own brand (added separately via brandData)
+          .map((b) => ({
+            id: String(b.rank),
+            name: b.brandName,
+            searchVolume: b.volume || 0,
+            growth: b.velocity || 0,
+            status: 'normal' as 'normal' | 'watching' | 'threat',
+            marketShare: b.marketShare || 0,
+          }))
+      : mockCompetitors.filter((c) => c.name !== 'Jacks.nl'),
 
     // Generate trend data that matches actual brand volumes
     competitiveTrendData: dashboardData?.brands
