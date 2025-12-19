@@ -112,6 +112,7 @@ export interface DashboardResponse {
       brandName: string;
       volume: number;
       marketShare: number;
+      velocity?: number;
       isOwnBrand: boolean;
       color?: string;
     }>;
