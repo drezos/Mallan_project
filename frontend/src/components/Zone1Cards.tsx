@@ -1,5 +1,27 @@
-import { TrendingUp, TrendingDown, ArrowUp, ArrowDown, Minus } from 'lucide-react'
+import { TrendingUp, TrendingDown, ArrowUp, ArrowDown, Minus, HelpCircle } from 'lucide-react'
 import { cn, formatNumber, formatPercentage } from '../lib/utils'
+
+// ===========================================
+// InfoTooltip Component
+// ===========================================
+interface InfoTooltipProps {
+  text: string
+  className?: string
+}
+
+function InfoTooltip({ text, className }: InfoTooltipProps) {
+  return (
+    <div className={cn("group relative inline-flex", className)}>
+      <HelpCircle className="w-4 h-4 text-gray-400 hover:text-gray-600 cursor-help transition-colors" />
+      <div className="pointer-events-none absolute right-0 top-6 z-50 w-64 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+        <div className="bg-slate-800 text-white text-xs rounded-lg px-3 py-2 shadow-lg">
+          {text}
+          <div className="absolute -top-1 right-2 w-2 h-2 bg-slate-800 rotate-45" />
+        </div>
+      </div>
+    </div>
+  )
+}
 
 // ===========================================
 // Card A: Share of Search (Hero Metric)
@@ -59,6 +81,7 @@ export function ShareOfSearchCard({ current, change, weeklyHistory }: ShareOfSea
             <p className="text-sm font-medium text-slate-500">Market Share</p>
             <p className="text-xs text-slate-400 mt-0.5">Share of Search</p>
           </div>
+          <InfoTooltip text="Your share of all tracked brand searches in the Dutch iGaming market. Calculated as your brand volume divided by total market volume." />
         </div>
 
         <div className="mt-4">
@@ -104,9 +127,12 @@ export function BrandVolumeCard({ volume, growth, marketRank }: BrandVolumeCardP
   return (
     <div className="card p-6 opacity-0 animate-slide-up animation-delay-100">
       <div className="flex items-start justify-between">
-        <div>
-          <p className="text-sm font-medium text-slate-500">Brand Search Volume</p>
-          <p className="text-xs text-slate-400 mt-0.5">Direct brand interest</p>
+        <div className="flex items-start gap-2">
+          <div>
+            <p className="text-sm font-medium text-slate-500">Brand Search Volume</p>
+            <p className="text-xs text-slate-400 mt-0.5">Direct brand interest</p>
+          </div>
+          <InfoTooltip text="Total monthly searches for your brand keywords (e.g., 'Jacks Casino', 'Jacks.nl'). Higher volume indicates stronger brand awareness." />
         </div>
         <div className={cn(
           'flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full',
@@ -127,7 +153,10 @@ export function BrandVolumeCard({ volume, growth, marketRank }: BrandVolumeCardP
       {/* Market Rank */}
       <div className="mt-4 pt-4 border-t border-slate-100">
         <div className="flex items-center justify-between">
-          <span className="text-sm text-slate-500">Market Rank</span>
+          <div className="flex items-center gap-1.5">
+            <span className="text-sm text-slate-500">Market Rank</span>
+            <InfoTooltip text="Your position among tracked competitors, ranked by search volume. Moving up means you're gaining visibility versus competitors." />
+          </div>
           <div className="flex items-center gap-2">
             <span className="text-2xl font-display font-bold text-slate-900">
               #{marketRank.current}
