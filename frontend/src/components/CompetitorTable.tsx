@@ -170,6 +170,7 @@ export function CompetitorTable({ competitors, brandData }: CompetitorTableProps
               return (
                 <tr
                   key={entity.id}
+                  id={`competitor-row-${entity.name}`}
                   className={cn(
                     'transition-colors',
                     isYourBrand ? 'bg-green-50/50' : 'hover:bg-slate-50/50'

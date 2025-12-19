@@ -143,6 +143,17 @@
 }
 
 .custom-tooltip {
-  @apply bg-white/95 backdrop-blur-sm rounded-lg shadow-elevated 
+  @apply bg-white/95 backdrop-blur-sm rounded-lg shadow-elevated
          border border-slate-200 p-3;
+}
+
+/* Highlight animation for competitor rows when clicked from alerts */
+.highlight-row {
+  animation: highlight-pulse 2s ease-out;
+}
+
+@keyframes highlight-pulse {
+  0% { background-color: #fef3c7; } /* yellow-100 */
+  50% { background-color: #fef3c7; }
+  100% { background-color: transparent; }
 }

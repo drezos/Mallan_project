@@ -10,10 +10,12 @@ interface Anomaly {
   driver?: string
   metric?: string
   timestamp: string
+  brandName?: string
 }
 
 interface AnomaliesPanelProps {
   anomalies: Anomaly[]
+  onAlertClick?: (brandName: string) => void
 }
 
 const anomalyIcons: Record<string, typeof AlertTriangle> = {
@@ -23,7 +25,7 @@ const anomalyIcons: Record<string, typeof AlertTriangle> = {
   market_trend: Zap,
 }
 
-export function AnomaliesPanel({ anomalies }: AnomaliesPanelProps) {
+export function AnomaliesPanel({ anomalies, onAlertClick }: AnomaliesPanelProps) {
   const highImpact = anomalies.filter(a => a.impact === 'high')
   const forInfo = anomalies.filter(a => a.impact === 'info')
 
@@ -46,7 +48,7 @@ export function AnomaliesPanel({ anomalies }: AnomaliesPanelProps) {
               </span>
             </div>
             {highImpact.map((anomaly) => (
-              <AnomalyItem key={anomaly.id} anomaly={anomaly} variant="high" />
+              <AnomalyItem key={anomaly.id} anomaly={anomaly} variant="high" onAlertClick={onAlertClick} />
             ))}
           </div>
         )}
@@ -61,7 +63,7 @@ export function AnomaliesPanel({ anomalies }: AnomaliesPanelProps) {
               </span>
             </div>
             {forInfo.map((anomaly) => (
-              <AnomalyItem key={anomaly.id} anomaly={anomaly} variant="info" />
+              <AnomalyItem key={anomaly.id} anomaly={anomaly} variant="info" onAlertClick={onAlertClick} />
             ))}
           </div>
         )}
@@ -79,17 +81,25 @@ export function AnomaliesPanel({ anomalies }: AnomaliesPanelProps) {
 interface AnomalyItemProps {
   anomaly: Anomaly
   variant: 'high' | 'info'
+  onAlertClick?: (brandName: string) => void
 }
 
-function AnomalyItem({ anomaly, variant }: AnomalyItemProps) {
+function AnomalyItem({ anomaly, variant, onAlertClick }: AnomalyItemProps) {
   const Icon = anomalyIcons[anomaly.type] || AlertTriangle
+
+  const handleClick = () => {
+    if (anomaly.brandName && onAlertClick) {
+      onAlertClick(anomaly.brandName)
+    }
+  }
 
   return (
     <div
+      onClick={handleClick}
       className={cn(
         'p-2.5 rounded-lg border mb-2 transition-all hover:shadow-sm cursor-pointer',
-        variant === 'high' 
-          ? 'bg-red-50 border-red-200 hover:border-red-300' 
+        variant === 'high'
+          ? 'bg-red-50 border-red-200 hover:border-red-300'
           : 'bg-slate-50 border-slate-200 hover:border-slate-300'
       )}
     >

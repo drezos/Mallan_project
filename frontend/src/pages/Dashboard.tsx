@@ -1,3 +1,4 @@
+import { useCallback } from 'react';
 import { RefreshCw, Loader2, WifiOff } from 'lucide-react';
 import { ShareOfSearchCard, BrandVolumeCard } from '../components/Zone1Cards'
 import { MarketOpportunityCard, TAMTrendChart } from '../components/Zone2Components'
@@ -18,6 +19,17 @@ import {
   topRivals,
   mockAnomalies,
 } from '../lib/mockData'
+
+// Helper function to extract brand name from alert message
+function extractBrandName(message: string, brands: string[]): string | undefined {
+  // Check if any brand name appears in the message
+  for (const brand of brands) {
+    if (message.toLowerCase().includes(brand.toLowerCase())) {
+      return brand;
+    }
+  }
+  return undefined;
+}
 
 // Helper function to scale mock trend data to match actual brand volumes
 function generateScaledTrendData(
@@ -137,8 +149,14 @@ export function Dashboard() {
       ? dashboardData.brands.slice(0, 5).map(b => b.brandName)
       : topRivals,
 
-    anomalies: dashboardData?.alerts?.length
-      ? dashboardData.alerts.map((a, index) => ({
+    anomalies: (() => {
+      // Get all brand names for matching alerts to competitors
+      const allBrandNames = dashboardData?.brands
+        ? dashboardData.brands.map(b => b.brandName)
+        : mockCompetitors.map(c => c.name);
+
+      if (dashboardData?.alerts?.length) {
+        return dashboardData.alerts.map((a, index) => ({
           id: String(index + 1),
           type: a.type,
           impact: (a.severity === 'high' ? 'high' : 'info') as 'high' | 'info',
@@ -146,9 +164,29 @@ export function Dashboard() {
           message: a.message,
           metric: a.type === 'competitor' ? 'Search Volume' : 'Intent Shift',
           timestamp: new Date().toISOString(),
-        }))
-      : mockAnomalies,
+          brandName: extractBrandName(a.message, allBrandNames),
+        }));
+      }
+      // For mock anomalies, extract brand name from title
+      return mockAnomalies.map(a => ({
+        ...a,
+        brandName: extractBrandName(a.title + ' ' + a.message, allBrandNames),
+      }));
+    })(),
   };
+
+  // Handle alert click - scroll to and highlight competitor row
+  const handleAlertClick = useCallback((brandName: string) => {
+    const row = document.getElementById(`competitor-row-${brandName}`);
+    if (row) {
+      // Scroll into view
+      row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // Add highlight class
+      row.classList.add('highlight-row');
+      // Remove highlight after animation completes
+      setTimeout(() => row.classList.remove('highlight-row'), 2000);
+    }
+  }, []);
 
   // Loading state
   if (isLoading) {
@@ -266,7 +304,7 @@ export function Dashboard() {
             />
           </div>
           <div className="lg:col-span-1">
-            <AnomaliesPanel anomalies={transformedData.anomalies} />
+            <AnomaliesPanel anomalies={transformedData.anomalies} onAlertClick={handleAlertClick} />
           </div>
         </div>
         
