@@ -5,6 +5,7 @@ import { Dashboard } from './pages/Dashboard'
 import { Competitors } from './pages/Competitors'
 import { Alerts } from './pages/Alerts'
 import { Settings } from './pages/Settings'
+import { VolumeViewProvider } from './contexts/VolumeViewContext'
 
 function App() {
   return (
@@ -15,14 +16,16 @@ function App() {
         </div>
       </SignedOut>
       <SignedIn>
-        <Routes>
-          <Route path="/" element={<Layout />}>
-            <Route index element={<Dashboard />} />
-            <Route path="competitors" element={<Competitors />} />
-            <Route path="alerts" element={<Alerts />} />
-            <Route path="settings" element={<Settings />} />
-          </Route>
-        </Routes>
+        <VolumeViewProvider>
+          <Routes>
+            <Route path="/" element={<Layout />}>
+              <Route index element={<Dashboard />} />
+              <Route path="competitors" element={<Competitors />} />
+              <Route path="alerts" element={<Alerts />} />
+              <Route path="settings" element={<Settings />} />
+            </Route>
+          </Routes>
+        </VolumeViewProvider>
       </SignedIn>
     </>
   )

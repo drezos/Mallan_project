@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { TrendingUp, TrendingDown, Minus, AlertTriangle, BarChart3 } from 'lucide-react'
 import { cn, formatNumber } from '../lib/utils'
+import { useVolumeView } from '../contexts/VolumeViewContext'
 
 // Helper functions (inline to avoid import issues)
 function getVelocityStatus(change: number): 'accelerating' | 'stable' | 'decelerating' {
@@ -18,17 +19,23 @@ interface Competitor {
   id: string | number
   name: string
   searchVolume: number
+  priorityKeyword?: string
+  priorityVolume?: number
   growth?: number
   weeklyChange?: number
   status?: 'normal' | 'watching' | 'threat'
   driver?: string
   marketShare?: number
+  priorityMarketShare?: number
 }
 
 interface BrandData {
   name: string
   searchVolume: number
+  priorityKeyword?: string
+  priorityVolume?: number
   growth: number
+  priorityMarketShare?: number
 }
 
 interface CompetitorTableProps {
@@ -40,6 +47,8 @@ type SortMode = 'velocity' | 'volume'
 
 export function CompetitorTable({ competitors, brandData }: CompetitorTableProps) {
   const [sortMode, setSortMode] = useState<SortMode>('velocity')
+  const { volumeView } = useVolumeView()
+  const isPriorityView = volumeView === 'priority'
 
   // Normalize competitor data
   const normalizedCompetitors = competitors.map(c => ({
@@ -49,16 +58,29 @@ export function CompetitorTable({ competitors, brandData }: CompetitorTableProps
     status: c.status || 'normal' as const,
   }));
 
-  // Calculate total market volume from all entities
-  const totalMarketVolume = brandData.searchVolume + normalizedCompetitors.reduce((sum, c) => sum + c.searchVolume, 0);
+  // Get the appropriate volume based on view mode
+  const getVolume = (entity: { searchVolume: number; priorityVolume?: number }) => {
+    return isPriorityView ? (entity.priorityVolume || 0) : entity.searchVolume
+  }
+
+  // Calculate total market volume from all entities based on view mode
+  const totalMarketVolume = getVolume(brandData) + normalizedCompetitors.reduce((sum, c) => sum + getVolume(c), 0);
 
   // Calculate Share of Search for all entities
   const allEntities = [
-    { ...brandData, id: 'your-brand', status: 'normal' as const, isYourBrand: true, shareOfSearch: calculateSoS(brandData.searchVolume, totalMarketVolume) },
+    {
+      ...brandData,
+      id: 'your-brand',
+      status: 'normal' as const,
+      isYourBrand: true,
+      displayVolume: getVolume(brandData),
+      shareOfSearch: calculateSoS(getVolume(brandData), totalMarketVolume)
+    },
     ...normalizedCompetitors.map(c => ({
       ...c,
       isYourBrand: false,
-      shareOfSearch: calculateSoS(c.searchVolume, totalMarketVolume),
+      displayVolume: getVolume(c),
+      shareOfSearch: calculateSoS(getVolume(c), totalMarketVolume),
       growth: c.growth,
     })),
   ]
@@ -67,11 +89,11 @@ export function CompetitorTable({ competitors, brandData }: CompetitorTableProps
   const sortedEntities = [...allEntities].sort((a, b) => {
     if (a.isYourBrand) return -1
     if (b.isYourBrand) return 1
-    
+
     if (sortMode === 'velocity') {
       return Math.abs(b.growth) - Math.abs(a.growth)
     } else {
-      return b.searchVolume - a.searchVolume
+      return b.displayVolume - a.displayVolume
     }
   })
 
@@ -110,7 +132,9 @@ export function CompetitorTable({ competitors, brandData }: CompetitorTableProps
       <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
         <div>
           <h3 className="font-display font-semibold text-slate-900">Competitor Snapshot</h3>
-          <p className="text-xs text-slate-500 mt-0.5">Last 7 days performance</p>
+          <p className="text-xs text-slate-500 mt-0.5">
+            {isPriorityView ? 'Priority keyword volumes' : 'Last 7 days performance'}
+          </p>
         </div>
         
         {/* Toggle */}
@@ -151,13 +175,13 @@ export function CompetitorTable({ competitors, brandData }: CompetitorTableProps
                 Brand
               </th>
               <th className="text-right text-xs font-medium text-slate-500 uppercase tracking-wider px-5 py-3">
-                {sortMode === 'volume' ? 'Search Vol.' : 'Velocity'}
+                {sortMode === 'volume' ? (isPriorityView ? 'Priority Vol.' : 'Search Vol.') : 'Velocity'}
               </th>
               <th className="text-right text-xs font-medium text-slate-500 uppercase tracking-wider px-5 py-3">
                 Share
               </th>
               <th className="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-5 py-3 w-44">
-                {sortMode === 'volume' ? 'Velocity' : 'Search Vol.'}
+                {sortMode === 'volume' ? 'Velocity' : (isPriorityView ? 'Priority Vol.' : 'Search Vol.')}
               </th>
             </tr>
           </thead>
@@ -212,7 +236,7 @@ export function CompetitorTable({ competitors, brandData }: CompetitorTableProps
                         'font-mono text-sm font-semibold',
                         isYourBrand ? 'text-green-700' : 'text-slate-900'
                       )}>
-                        {formatNumber(entity.searchVolume)}
+                        {formatNumber(entity.displayVolume)}
                       </span>
                     ) : (
                       <div className={cn(
@@ -269,7 +293,7 @@ export function CompetitorTable({ competitors, brandData }: CompetitorTableProps
                         'font-mono text-sm font-medium',
                         isYourBrand ? 'text-green-700' : 'text-slate-600'
                       )}>
-                        {formatNumber(entity.searchVolume)}
+                        {formatNumber(entity.displayVolume)}
                       </span>
                     )}
                   </td>

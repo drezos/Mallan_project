@@ -1,5 +1,6 @@
 import { TrendingUp, TrendingDown, ArrowUp, ArrowDown, Minus, HelpCircle } from 'lucide-react'
 import { cn, formatNumber, formatPercentage } from '../lib/utils'
+import { useVolumeView } from '../contexts/VolumeViewContext'
 
 // ===========================================
 // InfoTooltip Component
@@ -110,6 +111,8 @@ export function ShareOfSearchCard({ current, change, weeklyHistory }: ShareOfSea
 // ===========================================
 interface BrandVolumeCardProps {
   volume: number
+  priorityKeyword?: string
+  priorityVolume?: number
   growth: number
   marketRank: {
     current: number
@@ -119,20 +122,31 @@ interface BrandVolumeCardProps {
   }
 }
 
-export function BrandVolumeCard({ volume, growth, marketRank }: BrandVolumeCardProps) {
+export function BrandVolumeCard({ volume, priorityKeyword, priorityVolume, growth, marketRank }: BrandVolumeCardProps) {
+  const { volumeView } = useVolumeView()
   const isPositive = growth >= 0
   const rankImproved = marketRank.change > 0
   const rankDeclined = marketRank.change < 0
+
+  const displayVolume = volumeView === 'priority' ? (priorityVolume || 0) : volume
+  const isPriorityView = volumeView === 'priority'
 
   return (
     <div className="card p-6 opacity-0 animate-slide-up animation-delay-100">
       <div className="flex items-start justify-between">
         <div className="flex items-start gap-2">
           <div>
-            <p className="text-sm font-medium text-slate-500">Brand Search Volume</p>
-            <p className="text-xs text-slate-400 mt-0.5">Direct brand interest</p>
+            <p className="text-sm font-medium text-slate-500">
+              {isPriorityView ? 'Priority Keyword Volume' : 'Brand Search Volume'}
+            </p>
+            <p className="text-xs text-slate-400 mt-0.5">
+              {isPriorityView ? 'Single highest-volume keyword' : 'Direct brand interest'}
+            </p>
           </div>
-          <InfoTooltip text="Total monthly searches for your brand keywords (e.g., 'Jacks Casino', 'Jacks.nl'). Higher volume indicates stronger brand awareness." />
+          <InfoTooltip text={isPriorityView
+            ? "Search volume for your top-performing keyword. Useful for comparing with SEMrush data which shows single keyword volumes."
+            : "Total monthly searches for your brand keywords (e.g., 'Jacks Casino', 'Jacks.nl'). Higher volume indicates stronger brand awareness."
+          } />
         </div>
         <div className={cn(
           'flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full',
@@ -145,10 +159,17 @@ export function BrandVolumeCard({ volume, growth, marketRank }: BrandVolumeCardP
 
       <div className="mt-4">
         <span className="text-5xl font-display font-bold text-slate-900">
-          {formatNumber(volume)}
+          {formatNumber(displayVolume)}
         </span>
         <span className="text-lg text-slate-400 ml-1">searches</span>
       </div>
+
+      {/* Show priority keyword name when in priority view */}
+      {isPriorityView && priorityKeyword && (
+        <p className="text-xs text-slate-500 mt-1">
+          Keyword: <span className="font-medium text-slate-700">"{priorityKeyword}"</span>
+        </p>
+      )}
 
       {/* Market Rank */}
       <div className="mt-4 pt-4 border-t border-slate-100">

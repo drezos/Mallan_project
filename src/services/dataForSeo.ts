@@ -59,6 +59,8 @@ export interface BrandSearchVolume {
   brandId: string;
   brandName: string;
   totalVolume: number;
+  priorityKeyword: string;
+  priorityVolume: number;
   keywords: SearchVolumeResult[];
   fetchedAt: Date;
 }
@@ -169,10 +171,22 @@ class DataForSEOService {
         return sum + (r.searchVolume || 0);
       }, 0);
 
+      // Find the keyword with the highest volume (priority keyword)
+      let priorityKeyword = brand.keywords[0] || '';
+      let priorityVolume = 0;
+      brandKeywordResults.forEach(r => {
+        if (r.searchVolume && r.searchVolume > priorityVolume) {
+          priorityVolume = r.searchVolume;
+          priorityKeyword = r.keyword;
+        }
+      });
+
       return {
         brandId: brand.id,
         brandName: brand.displayName,
         totalVolume,
+        priorityKeyword,
+        priorityVolume,
         keywords: brandKeywordResults,
         fetchedAt: new Date()
       };
