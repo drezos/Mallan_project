@@ -1,7 +1,8 @@
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import { RefreshCw, Loader2, WifiOff } from 'lucide-react';
 import { ShareOfSearchCard, BrandVolumeCard } from '../components/Zone1Cards'
 import { MarketOpportunityCard, TAMTrendChart } from '../components/Zone2Components'
+import { ThisWeekStory, KeyTakeaways, BrewedContextData } from '../components/BrewedContext'
 import { CompetitorTable } from '../components/CompetitorTable'
 import { CompetitiveTrendChart } from '../components/CompetitiveTrendChart'
 import { AnomaliesPanel } from '../components/AnomaliesPanel'
@@ -191,6 +192,37 @@ export function Dashboard() {
     })(),
   };
 
+  // Prepare data for Brewed Context components
+  const brewedContextData: BrewedContextData = useMemo(() => {
+    const ownBrandData = dashboardData?.brands?.find(b => b.isOwnBrand);
+    const allBrands = dashboardData?.brands || [];
+
+    // Calculate market velocity (TAM growth)
+    // Using mock data for now as TAM velocity isn't in the API
+    const marketVelocity = mockTAMGrowth;
+
+    return {
+      ownBrand: {
+        name: ownBrandData?.brandName || transformedData.brandData.name,
+        volume: ownBrandData?.volume || transformedData.brandData.searchVolume,
+        velocity: ownBrandData?.velocity ?? transformedData.brandData.growth,
+        rank: ownBrandData?.rank || transformedData.marketRank.current,
+        marketShare: ownBrandData?.marketShare || transformedData.brandData.marketShare,
+      },
+      market: {
+        velocity: marketVelocity,
+        totalVolume: dashboardData?.overview?.totalMarketVolume || transformedData.tam.total,
+      },
+      competitors: allBrands.map(b => ({
+        name: b.brandName,
+        volume: b.volume,
+        velocity: b.velocity ?? 0,
+        rank: b.rank,
+        isOwnBrand: b.isOwnBrand,
+      })),
+    };
+  }, [dashboardData, transformedData]);
+
   // Handle alert click - scroll to and highlight competitor row
   const handleAlertClick = useCallback((brandName: string) => {
     const row = document.getElementById(`competitor-row-${brandName}`);
@@ -286,33 +318,37 @@ export function Dashboard() {
       </section>
 
       {/* ===========================================
-          ZONE 2: Strategic Context (Middle Row - 1/3 + 2/3)
+          ZONE 2: Strategic Context (Brewed Context)
           =========================================== */}
-      <section>
-        <h2 className="text-lg font-display font-semibold text-slate-800 mb-4 opacity-0 animate-fade-in animation-delay-200">
+      <section className="space-y-4">
+        <h2 className="text-lg font-display font-semibold text-slate-800 opacity-0 animate-fade-in animation-delay-200">
           Brewed Context
         </h2>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          {/* Left Panel: Market Opportunity (1/3) */}
-          <div className="lg:col-span-1">
-            <MarketOpportunityCard
-              yourBrand={transformedData.marketOpportunity.yourBrand}
-              competitors={transformedData.marketOpportunity.competitors}
-              generic={transformedData.marketOpportunity.generic}
-              total={transformedData.marketOpportunity.total}
-            />
-          </div>
 
-          {/* Right Panel: TAM Trend Chart (2/3) */}
-          <div className="lg:col-span-2">
-            <TAMTrendChart
-              data={transformedData.tamTrendData}
-              totalTAM={transformedData.tam.total}
-              tamGrowth={transformedData.tamGrowth}
-              brandName="Jacks.nl"
-            />
-          </div>
+        {/* Part 1: This Week's Story */}
+        <ThisWeekStory data={brewedContextData} />
+
+        {/* Part 2: Charts side by side */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Left Chart: Search Volume Overview */}
+          <MarketOpportunityCard
+            yourBrand={transformedData.marketOpportunity.yourBrand}
+            competitors={transformedData.marketOpportunity.competitors}
+            generic={transformedData.marketOpportunity.generic}
+            total={transformedData.marketOpportunity.total}
+          />
+
+          {/* Right Chart: Market Opportunity (TAM Trend) */}
+          <TAMTrendChart
+            data={transformedData.tamTrendData}
+            totalTAM={transformedData.tam.total}
+            tamGrowth={transformedData.tamGrowth}
+            brandName={brewedContextData.ownBrand.name}
+          />
         </div>
+
+        {/* Part 3: Key Takeaways */}
+        <KeyTakeaways data={brewedContextData} />
       </section>
 
       {/* ===========================================

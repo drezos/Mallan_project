@@ -37,7 +37,7 @@ export function MarketOpportunityCard({ yourBrand, competitors, generic, total }
     <div className="card p-5 h-full opacity-0 animate-slide-up animation-delay-200">
       <div className="mb-4">
         <h3 className="font-display font-semibold text-slate-900">Search Volume Overview</h3>
-        <p className="text-xs text-slate-500 mt-0.5">Total addressable market breakdown</p>
+        <p className="text-xs text-slate-500 mt-0.5">Your share of the total addressable market</p>
       </div>
 
       {/* Horizontal Stacked Bar */}
@@ -282,15 +282,23 @@ export function TAMTrendChart({ data, totalTAM, tamGrowth, brandName = 'Jacks.nl
       </div>
 
       {/* Footer legend */}
-      <div className="mt-2 pt-2 border-t border-slate-100 flex items-center gap-4 text-xs">
-        <div className="flex items-center gap-1.5">
-          <div className="w-3 h-0.5 bg-forest-600 rounded" />
-          <span className="text-slate-600">{brandName}: <span className="font-semibold text-forest-600">+{brandGrowth.toFixed(1)}%</span></span>
+      <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-0.5 bg-forest-600 rounded" />
+            <span className="text-slate-600">{brandName}: <span className="font-semibold text-forest-600">+{brandGrowth.toFixed(1)}%</span></span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-3 bg-slate-200 rounded-sm opacity-60" />
+            <span className="text-slate-500">TAM: <span className="font-medium">+{tamGrowth.toFixed(1)}%</span></span>
+          </div>
         </div>
-        <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 bg-slate-200 rounded-sm opacity-60" />
-          <span className="text-slate-500">TAM: <span className="font-medium">+{tamGrowth.toFixed(1)}%</span></span>
-        </div>
+        <span className={cn(
+          'text-xs italic',
+          isOutperforming ? 'text-forest-600' : 'text-amber-600'
+        )}>
+          {isOutperforming ? "You're growing faster than the market" : "Market is outpacing your growth"}
+        </span>
       </div>
     </div>
   )
