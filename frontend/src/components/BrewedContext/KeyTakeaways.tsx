@@ -1,5 +1,6 @@
 import { Lightbulb, TrendingUp, AlertTriangle, Minus } from 'lucide-react';
 import { cn } from '../../lib/utils';
+import { InfoTooltip } from '../InfoTooltip';
 import {
   BrewedContextData,
   TakeawayResult,
@@ -17,13 +18,16 @@ export function KeyTakeaways({ data }: KeyTakeawaysProps) {
 
   return (
     <div className="card p-5 opacity-0 animate-slide-up animation-delay-500">
-      <div className="flex items-center gap-2 mb-4">
-        <div className="flex items-center justify-center w-7 h-7 rounded-full bg-amber-100">
-          <Lightbulb className="w-4 h-4 text-amber-600" />
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <div className="flex items-center justify-center w-7 h-7 rounded-full bg-amber-100">
+            <Lightbulb className="w-4 h-4 text-amber-600" />
+          </div>
+          <h3 className="font-display font-semibold text-slate-900">
+            Key Takeaways
+          </h3>
         </div>
-        <h3 className="font-display font-semibold text-slate-900">
-          Key Takeaways
-        </h3>
+        <InfoTooltip text="AI-generated insights based on your performance, market trends, and competitive position. Updated with each data refresh." />
       </div>
 
       <div className="space-y-3">

@@ -12,6 +12,7 @@ import {
 } from 'recharts';
 import { TrendingUp, TrendingDown } from 'lucide-react'
 import { cn, formatNumber } from '../lib/utils'
+import { InfoTooltip } from './InfoTooltip'
 
 // ===========================================
 // Market Opportunity Card (Horizontal Stacked Bar)
@@ -35,9 +36,12 @@ export function MarketOpportunityCard({ yourBrand, competitors, generic, total }
 
   return (
     <div className="card p-5 h-full opacity-0 animate-slide-up animation-delay-200">
-      <div className="mb-4">
-        <h3 className="font-display font-semibold text-slate-900">Search Volume Overview</h3>
-        <p className="text-xs text-slate-500 mt-0.5">Your share of the total addressable market</p>
+      <div className="flex items-start justify-between mb-4">
+        <div>
+          <h3 className="font-display font-semibold text-slate-900">Search Volume Overview</h3>
+          <p className="text-xs text-slate-500 mt-0.5">Your share of the total addressable market</p>
+        </div>
+        <InfoTooltip text="Your share of total branded searches in the Dutch iGaming market. 'Your Brand' = Jacks keyword searches. 'Competitors' = competitor brand searches. 'Generic' = non-branded casino searches." />
       </div>
 
       {/* Horizontal Stacked Bar */}
@@ -168,7 +172,10 @@ export function TAMTrendChart({ data, totalTAM, tamGrowth, brandName = 'Jacks.nl
       {/* Header with TAM stats */}
       <div className="flex items-start justify-between mb-4">
         <div>
-          <h3 className="font-display font-semibold text-slate-900">Market Opportunity</h3>
+          <div className="flex items-center gap-2">
+            <h3 className="font-display font-semibold text-slate-900">Market Opportunity</h3>
+            <InfoTooltip text="Tracks your brand's search trend vs total addressable market (TAM) over 12 weeks. Green line = your brand. Gray area = total market." position="left" />
+          </div>
           <p className="text-xs text-slate-500 mt-0.5">The Tide (TAM) vs The Boat (Your Brand)</p>
         </div>
         <div className="text-right">

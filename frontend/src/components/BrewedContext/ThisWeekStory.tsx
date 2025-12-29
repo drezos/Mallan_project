@@ -1,5 +1,6 @@
 import { Trophy, TrendingDown, Target } from 'lucide-react';
 import { cn } from '../../lib/utils';
+import { InfoTooltip } from '../InfoTooltip';
 import {
   BrewedContextData,
   StoryInsights,
@@ -17,9 +18,12 @@ export function ThisWeekStory({ data }: ThisWeekStoryProps) {
 
   return (
     <div className="card p-5 opacity-0 animate-slide-up animation-delay-200">
-      <h3 className="font-display font-semibold text-slate-900 mb-4">
-        This Week's Story
-      </h3>
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="font-display font-semibold text-slate-900">
+          This Week's Story
+        </h3>
+        <InfoTooltip text="Compares your weekly growth against total market growth. Velocity = week-over-week % change in search volume." />
+      </div>
 
       <div className="space-y-4">
         {/* Market vs Your Growth */}
