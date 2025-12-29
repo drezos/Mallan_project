@@ -136,6 +136,7 @@ export interface DashboardResponse {
     }>;
     metrics: any;
     fetchedAt: string;
+    lastUpdated?: string;
     _meta?: {
       source: string;
       cached_at: string;

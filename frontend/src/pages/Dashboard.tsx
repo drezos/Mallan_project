@@ -225,6 +225,13 @@ export function Dashboard() {
         </p>
         
         <div className="flex items-center gap-3">
+          {/* Last updated timestamp */}
+          {dashboardData?.lastUpdated && (
+            <div className="text-sm text-gray-500">
+              Updated {formatRelativeTime(dashboardData.lastUpdated)}
+            </div>
+          )}
+
           {/* Connection status */}
           {isError ? (
             <div className="flex items-center gap-2 text-amber-600 text-sm">
@@ -237,7 +244,7 @@ export function Dashboard() {
               <span>Live</span>
             </div>
           )}
-          
+
           {/* Refresh button */}
           <button
             onClick={() => refetch()}
@@ -348,4 +355,27 @@ function getTimeOfDay(): string {
   if (hour < 12) return 'morning'
   if (hour < 17) return 'afternoon'
   return 'evening'
+}
+
+function formatRelativeTime(dateString: string): string {
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / (1000 * 60));
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+  if (diffMins < 1) return 'just now';
+  if (diffMins < 60) return `${diffMins} minute${diffMins === 1 ? '' : 's'} ago`;
+  if (diffHours < 24) return `${diffHours} hour${diffHours === 1 ? '' : 's'} ago`;
+  if (diffDays < 7) return `${diffDays} day${diffDays === 1 ? '' : 's'} ago`;
+
+  // For older dates, show the actual date
+  return date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined,
+    hour: 'numeric',
+    minute: '2-digit',
+  });
 }

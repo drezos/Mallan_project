@@ -173,6 +173,7 @@ export const cachedDataService = {
         const data = cached.data as Record<string, unknown>;
         return {
           ...data,
+          lastUpdated: cached.cached_at.toISOString(),
           _meta: {
             source: 'cache',
             cached_at: cached.cached_at,
@@ -198,11 +199,13 @@ export const cachedDataService = {
         // Cache for 1 week
         await cacheService.set(cacheKey, freshData, CACHE_DURATIONS.WEEKLY);
 
+        const now = new Date();
         return {
           ...freshData,
+          lastUpdated: now.toISOString(),
           _meta: {
             source: 'fresh',
-            cached_at: new Date(),
+            cached_at: now,
             expires_at: new Date(Date.now() + CACHE_DURATIONS.WEEKLY)
           }
         };
@@ -215,6 +218,7 @@ export const cachedDataService = {
         const staleData = staleCache.data as Record<string, unknown>;
         return {
           ...staleData,
+          lastUpdated: staleCache.cached_at.toISOString(),
           _meta: {
             source: 'stale_cache',
             cached_at: staleCache.cached_at,
@@ -235,6 +239,7 @@ export const cachedDataService = {
         const staleData = staleCache.data as Record<string, unknown>;
         return {
           ...staleData,
+          lastUpdated: staleCache.cached_at.toISOString(),
           _meta: {
             source: 'stale_cache',
             cached_at: staleCache.cached_at,
