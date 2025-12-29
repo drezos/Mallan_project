@@ -286,11 +286,11 @@ export function TAMTrendChart({ data, totalTAM, tamGrowth, brandName = 'Jacks.nl
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-1.5">
             <div className="w-3 h-0.5 bg-forest-600 rounded" />
-            <span className="text-slate-600">{brandName}: <span className="font-semibold text-forest-600">+{brandGrowth.toFixed(1)}%</span></span>
+            <span className="text-slate-600">{brandName} <span className="text-slate-400">(12W)</span>: <span className="font-semibold text-forest-600">{brandGrowth >= 0 ? '+' : ''}{brandGrowth.toFixed(1)}%</span></span>
           </div>
           <div className="flex items-center gap-1.5">
             <div className="w-3 h-3 bg-slate-200 rounded-sm opacity-60" />
-            <span className="text-slate-500">TAM: <span className="font-medium">+{tamGrowth.toFixed(1)}%</span></span>
+            <span className="text-slate-500">TAM <span className="text-slate-400">(12W)</span>: <span className="font-medium">{tamGrowth >= 0 ? '+' : ''}{tamGrowth.toFixed(1)}%</span></span>
           </div>
         </div>
         <span className={cn(
