@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { TrendingUp, TrendingDown, Minus, AlertTriangle, BarChart3 } from 'lucide-react'
 import { cn, formatNumber } from '../lib/utils'
 import { useVolumeView } from '../contexts/VolumeViewContext'
+import { InfoTooltip } from './InfoTooltip'
 
 // Helper functions (inline to avoid import issues)
 function getVelocityStatus(change: number): 'accelerating' | 'stable' | 'decelerating' {
@@ -131,7 +132,10 @@ export function CompetitorTable({ competitors, brandData }: CompetitorTableProps
       {/* Header */}
       <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
         <div>
-          <h3 className="font-display font-semibold text-slate-900">Competitor Snapshot</h3>
+          <div className="flex items-center gap-2">
+            <h3 className="font-display font-semibold text-slate-900">Competitor Snapshot</h3>
+            <InfoTooltip text="All tracked competitors ranked by search volume. Velocity = week-over-week change. Share = % of total market searches." position="left" />
+          </div>
           <p className="text-xs text-slate-500 mt-0.5">
             {isPriorityView ? 'Priority keyword volumes' : 'Last 7 days performance'}
           </p>

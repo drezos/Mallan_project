@@ -1,5 +1,6 @@
 import { AlertTriangle, TrendingUp, Search, Zap, Info } from 'lucide-react'
 import { cn, formatRelativeTime } from '../lib/utils'
+import { InfoTooltip } from './InfoTooltip'
 
 interface Anomaly {
   id: string
@@ -31,9 +32,12 @@ export function AnomaliesPanel({ anomalies, onAlertClick }: AnomaliesPanelProps)
 
   return (
     <div className="card p-4 h-full flex flex-col opacity-0 animate-slide-up animation-delay-500">
-      <div className="mb-3">
-        <h3 className="font-display font-semibold text-slate-900 text-sm">Market Alerts</h3>
-        <p className="text-xs text-slate-500">Statistical outliers</p>
+      <div className="flex items-start justify-between mb-3">
+        <div>
+          <h3 className="font-display font-semibold text-slate-900 text-sm">Market Alerts</h3>
+          <p className="text-xs text-slate-500">Statistical outliers</p>
+        </div>
+        <InfoTooltip text="Automated alerts triggered when competitors show unusual growth patterns or statistical anomalies worth monitoring." />
       </div>
 
       {/* Scrollable feed */}

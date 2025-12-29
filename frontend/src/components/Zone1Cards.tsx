@@ -1,28 +1,7 @@
-import { TrendingUp, TrendingDown, ArrowUp, ArrowDown, Minus, HelpCircle } from 'lucide-react'
+import { TrendingUp, TrendingDown, ArrowUp, ArrowDown, Minus } from 'lucide-react'
 import { cn, formatNumber, formatPercentage } from '../lib/utils'
 import { useVolumeView } from '../contexts/VolumeViewContext'
-
-// ===========================================
-// InfoTooltip Component
-// ===========================================
-interface InfoTooltipProps {
-  text: string
-  className?: string
-}
-
-function InfoTooltip({ text, className }: InfoTooltipProps) {
-  return (
-    <div className={cn("group relative inline-flex", className)}>
-      <HelpCircle className="w-4 h-4 text-gray-400 hover:text-gray-600 cursor-help transition-colors" />
-      <div className="pointer-events-none absolute right-0 top-6 z-50 w-64 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-        <div className="bg-slate-800 text-white text-xs rounded-lg px-3 py-2 shadow-lg">
-          {text}
-          <div className="absolute -top-1 right-2 w-2 h-2 bg-slate-800 rotate-45" />
-        </div>
-      </div>
-    </div>
-  )
-}
+import { InfoTooltip } from './InfoTooltip'
 
 // ===========================================
 // Card A: Share of Search (Hero Metric)
