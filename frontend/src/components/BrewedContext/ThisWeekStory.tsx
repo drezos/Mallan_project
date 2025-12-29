@@ -41,21 +41,23 @@ function MarketComparison({ insights }: { insights: StoryInsights }) {
   return (
     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pb-4 border-b border-slate-100">
       <div className="flex items-center gap-2 flex-wrap">
-        <span className="text-slate-600">Market grew</span>
+        <span className="text-slate-600">Market</span>
         <span className={cn(
           'font-mono font-semibold',
           marketVelocity >= 0 ? 'text-forest-600' : 'text-red-600'
         )}>
           {formatVelocity(marketVelocity)}
         </span>
+        <span className="text-slate-400">(WoW)</span>
         <span className="text-slate-400">→</span>
-        <span className="text-slate-600">You grew</span>
+        <span className="text-slate-600">You</span>
         <span className={cn(
           'font-mono font-semibold',
           brandVelocity >= 0 ? 'text-forest-600' : 'text-red-600'
         )}>
           {formatVelocity(brandVelocity)}
         </span>
+        <span className="text-slate-400">(WoW)</span>
       </div>
 
       <div className={cn(
