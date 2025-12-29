@@ -5,6 +5,7 @@ import { MarketOpportunityCard, TAMTrendChart } from '../components/Zone2Compone
 import { ThisWeekStory, KeyTakeaways, BrewedContextData } from '../components/BrewedContext'
 import { CompetitorTable } from '../components/CompetitorTable'
 import { CompetitiveTrendChart } from '../components/CompetitiveTrendChart'
+import { CompetitorHighlights } from '../components/CompetitorHighlights'
 import { AnomaliesPanel } from '../components/AnomaliesPanel'
 import { VolumeToggle } from '../components/VolumeToggle'
 import { useDashboard } from '../hooks/useDashboard'
@@ -223,6 +224,55 @@ export function Dashboard() {
     };
   }, [dashboardData, transformedData]);
 
+  // Calculate fastest growing and biggest decline competitors
+  const competitorHighlights = useMemo(() => {
+    const competitors = transformedData.competitors;
+
+    if (competitors.length === 0) {
+      return {
+        fastestGrowing: { name: 'N/A', velocity: 0 },
+        biggestDecline: { name: 'N/A', velocity: 0 },
+      };
+    }
+
+    // Helper to get velocity from competitor (handles both API and mock data formats)
+    const getVelocity = (c: typeof competitors[0]): number => {
+      return ('growth' in c ? c.growth : 0) || 0;
+    };
+
+    const fastestGrowing = competitors.reduce((max, c) =>
+      getVelocity(c) > getVelocity(max) ? c : max
+    );
+
+    const biggestDecline = competitors.reduce((min, c) =>
+      getVelocity(c) < getVelocity(min) ? c : min
+    );
+
+    return {
+      fastestGrowing: { name: fastestGrowing.name, velocity: getVelocity(fastestGrowing) },
+      biggestDecline: { name: biggestDecline.name, velocity: getVelocity(biggestDecline) },
+    };
+  }, [transformedData.competitors]);
+
+  // Filter anomalies for competitor-specific alerts only (for Market Alerts panel)
+  const competitorSpecificAnomalies = useMemo(() => {
+    // Keep alerts that are competitor-specific (have a brand name associated)
+    // or are about competitor growth/surges
+    const competitorAlertTypes = ['competitor_surge', 'competitor_growth', 'emerging_threat', 'competitive_pressure'];
+
+    return transformedData.anomalies.filter(anomaly =>
+      // Include if it has a brand name (competitor-specific)
+      anomaly.brandName ||
+      // Or if the type is competitor-related
+      competitorAlertTypes.includes(anomaly.type) ||
+      // Or if the title/message mentions a specific competitor
+      transformedData.competitors.some(c =>
+        anomaly.title.toLowerCase().includes(c.name.toLowerCase()) ||
+        anomaly.message.toLowerCase().includes(c.name.toLowerCase())
+      )
+    );
+  }, [transformedData.anomalies, transformedData.competitors]);
+
   // Handle alert click - scroll to and highlight competitor row
   const handleAlertClick = useCallback((brandName: string) => {
     const row = document.getElementById(`competitor-row-${brandName}`);
@@ -358,7 +408,13 @@ export function Dashboard() {
         <h2 className="text-lg font-display font-semibold text-slate-800 mb-4 opacity-0 animate-fade-in animation-delay-400">
           Competitive Roast
         </h2>
-        
+
+        {/* Competitor Highlights - above the table */}
+        <CompetitorHighlights
+          fastestGrowing={competitorHighlights.fastestGrowing}
+          biggestDecline={competitorHighlights.biggestDecline}
+        />
+
         {/* Row 1: Table (2/3) + Anomalies (1/3) */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
           <div className="lg:col-span-2">
@@ -368,7 +424,7 @@ export function Dashboard() {
             />
           </div>
           <div className="lg:col-span-1">
-            <AnomaliesPanel anomalies={transformedData.anomalies} onAlertClick={handleAlertClick} />
+            <AnomaliesPanel anomalies={competitorSpecificAnomalies} onAlertClick={handleAlertClick} />
           </div>
         </div>
         
