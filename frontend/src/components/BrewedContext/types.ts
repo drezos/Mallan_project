@@ -30,8 +30,6 @@ export interface StoryInsights {
   brandVelocity: number;
   outperformanceRatio: number;
   isOutperforming: boolean;
-  biggestWinner: { name: string; velocity: number } | null;
-  biggestLoser: { name: string; velocity: number } | null;
   brandRank: number;
   totalBrands: number;
   brandAboveYou: CompetitorData | null;
@@ -51,25 +49,6 @@ export function calculateStoryInsights(data: BrewedContextData): StoryInsights {
 
   // Sort competitors by rank (ascending)
   const sortedByRank = [...competitors].sort((a, b) => a.rank - b.rank);
-
-  // Find biggest winner (highest velocity, excluding own brand)
-  const otherBrands = competitors.filter(c => !c.isOwnBrand);
-  const allBrandsWithOwn = [...otherBrands, { ...ownBrand, isOwnBrand: true }];
-
-  const biggestWinner = allBrandsWithOwn.reduce((max, brand) => {
-    if (!max || brand.velocity > max.velocity) {
-      return { name: brand.name, velocity: brand.velocity };
-    }
-    return max;
-  }, null as { name: string; velocity: number } | null);
-
-  // Find biggest loser (lowest velocity)
-  const biggestLoser = allBrandsWithOwn.reduce((min, brand) => {
-    if (!min || brand.velocity < min.velocity) {
-      return { name: brand.name, velocity: brand.velocity };
-    }
-    return min;
-  }, null as { name: string; velocity: number } | null);
 
   // Find brand above you (rank - 1)
   const brandAboveYou = sortedByRank.find(c => c.rank === ownBrand.rank - 1 && !c.isOwnBrand) || null;
@@ -91,8 +70,6 @@ export function calculateStoryInsights(data: BrewedContextData): StoryInsights {
     brandVelocity: ownBrand.velocity,
     outperformanceRatio,
     isOutperforming: ownBrand.velocity > market.velocity,
-    biggestWinner,
-    biggestLoser,
     brandRank: ownBrand.rank,
     totalBrands: competitors.length,
     brandAboveYou,
@@ -102,7 +79,7 @@ export function calculateStoryInsights(data: BrewedContextData): StoryInsights {
   };
 }
 
-// Calculate takeaway messages based on insights
+// Calculate takeaway messages based on insights (brand/market focused only)
 export function calculateTakeaways(
   data: BrewedContextData,
   insights: StoryInsights
@@ -111,76 +88,79 @@ export function calculateTakeaways(
   const { ownBrand } = data;
 
   // Takeaway 1: Your performance vs market
-  if (insights.brandVelocity > insights.marketVelocity + 2) {
+  if (insights.brandVelocity > insights.marketVelocity) {
     takeaways.push({
-      text: "You're winning — maintain current momentum",
+      text: "You're outpacing the market — maintain momentum",
       type: 'positive',
     });
-  } else if (insights.brandVelocity < insights.marketVelocity - 2) {
+  } else if (insights.brandVelocity < insights.marketVelocity) {
     takeaways.push({
-      text: "You're losing ground — review competitor activity",
+      text: "You're trailing the market — review your campaigns",
       type: 'warning',
     });
   } else {
     takeaways.push({
-      text: "You're holding steady — look for growth opportunities",
+      text: "You're matching the market — look for growth opportunities",
       type: 'neutral',
     });
   }
 
-  // Takeaway 2: Based on biggest winner
-  if (insights.biggestWinner) {
-    if (insights.biggestWinner.name === ownBrand.name) {
-      takeaways.push({
-        text: "You're the fastest growing brand this week",
-        type: 'positive',
-      });
-    } else {
-      takeaways.push({
-        text: `Watch ${insights.biggestWinner.name} — they're accelerating fast`,
-        type: 'warning',
-      });
-    }
+  // Takeaway 2: Market health
+  if (insights.marketVelocity > 0) {
+    takeaways.push({
+      text: `Market is growing ${formatVelocity(insights.marketVelocity)} — demand is healthy`,
+      type: 'positive',
+    });
+  } else if (insights.marketVelocity < 0) {
+    takeaways.push({
+      text: `Market is declining ${formatVelocity(insights.marketVelocity)} — industry-wide slowdown`,
+      type: 'warning',
+    });
+  } else {
+    takeaways.push({
+      text: "Market is flat — focus on capturing share",
+      type: 'neutral',
+    });
   }
 
-  // Takeaway 3: Gap closure projection
-  if (insights.brandAboveYou && insights.gapToAbove !== null) {
-    const weeklyGrowthYou = ownBrand.volume * (insights.brandVelocity / 100);
-    const weeklyGrowthThem = insights.brandAboveYou.volume * (insights.brandAboveYou.velocity / 100);
-    const growthDifference = weeklyGrowthYou - weeklyGrowthThem;
-
-    if (growthDifference > 0 && insights.gapToAbove > 0) {
-      // We're catching up
-      const weeksToOvertake = Math.ceil(insights.gapToAbove / growthDifference);
-      if (weeksToOvertake <= 52 && weeksToOvertake > 0) {
-        takeaways.push({
-          text: `At current pace, you'll overtake ${insights.brandAboveYou.name} in ~${weeksToOvertake} week${weeksToOvertake === 1 ? '' : 's'}`,
-          type: 'positive',
-        });
-      } else {
-        takeaways.push({
-          text: `Gap to ${insights.brandAboveYou.name} is closing slowly — consider increasing spend`,
-          type: 'neutral',
-        });
-      }
-    } else if (growthDifference < 0) {
-      // They're pulling away
-      takeaways.push({
-        text: `${insights.brandAboveYou.name} is pulling ahead — consider increasing spend`,
-        type: 'warning',
-      });
-    } else {
-      // Gap stable
-      takeaways.push({
-        text: `Focus on maintaining momentum against ${insights.brandAboveYou.name}`,
-        type: 'neutral',
-      });
-    }
-  } else if (ownBrand.rank === 1) {
+  // Takeaway 3: Your position/gap (no competitor names)
+  if (ownBrand.rank === 1) {
     takeaways.push({
       text: "You're the market leader — focus on defending your position",
       type: 'positive',
     });
+  } else if (insights.gapToAbove !== null && insights.gapToAbove > 0) {
+    // Calculate weeks to overtake if catching up
+    if (insights.brandAboveYou) {
+      const weeklyGrowthYou = ownBrand.volume * (insights.brandVelocity / 100);
+      const weeklyGrowthThem = insights.brandAboveYou.volume * (insights.brandAboveYou.velocity / 100);
+      const growthDifference = weeklyGrowthYou - weeklyGrowthThem;
+
+      if (growthDifference > 0) {
+        const weeksToOvertake = Math.ceil(insights.gapToAbove / growthDifference);
+        if (weeksToOvertake <= 52 && weeksToOvertake > 0) {
+          takeaways.push({
+            text: `At current pace, you'll reach #${ownBrand.rank - 1} in ~${weeksToOvertake} week${weeksToOvertake === 1 ? '' : 's'}`,
+            type: 'positive',
+          });
+        } else {
+          takeaways.push({
+            text: `You need ${formatCompactNumber(insights.gapToAbove)} more searches to reach #${ownBrand.rank - 1}`,
+            type: 'neutral',
+          });
+        }
+      } else {
+        takeaways.push({
+          text: `You need ${formatCompactNumber(insights.gapToAbove)} more searches to reach #${ownBrand.rank - 1}`,
+          type: 'neutral',
+        });
+      }
+    } else {
+      takeaways.push({
+        text: `You need ${formatCompactNumber(insights.gapToAbove)} more searches to reach #${ownBrand.rank - 1}`,
+        type: 'neutral',
+      });
+    }
   }
 
   return takeaways.slice(0, 3); // Ensure we only return 3 takeaways

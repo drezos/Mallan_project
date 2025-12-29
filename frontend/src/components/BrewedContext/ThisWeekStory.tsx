@@ -1,4 +1,4 @@
-import { Trophy, TrendingDown, Target } from 'lucide-react';
+import { Target } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { InfoTooltip } from '../InfoTooltip';
 import {
@@ -28,9 +28,6 @@ export function ThisWeekStory({ data }: ThisWeekStoryProps) {
       <div className="space-y-4">
         {/* Market vs Your Growth */}
         <MarketComparison insights={insights} />
-
-        {/* Winner and Loser */}
-        <WinnerLoserRow insights={insights} ownBrandName={data.ownBrand.name} />
 
         {/* Position & Gaps */}
         <PositionGaps insights={insights} />
@@ -81,55 +78,6 @@ function MarketComparison({ insights }: { insights: StoryInsights }) {
             <span className="text-base">&#10007;</span>
           </>
         )}
-      </div>
-    </div>
-  );
-}
-
-function WinnerLoserRow({ insights, ownBrandName }: { insights: StoryInsights; ownBrandName: string }) {
-  const { biggestWinner, biggestLoser } = insights;
-
-  return (
-    <div className="flex flex-col sm:flex-row gap-4">
-      {/* Biggest Winner */}
-      <div className="flex items-center gap-2 flex-1">
-        <div className="flex items-center justify-center w-7 h-7 rounded-full bg-amber-100">
-          <Trophy className="w-4 h-4 text-amber-600" />
-        </div>
-        <div>
-          <span className="text-xs text-slate-500">Biggest Winner</span>
-          <div className="flex items-center gap-1.5">
-            <span className="font-semibold text-slate-900">
-              {biggestWinner?.name || 'N/A'}
-              {biggestWinner?.name === ownBrandName && ' (You!)'}
-            </span>
-            {biggestWinner && (
-              <span className="text-xs font-mono text-forest-600">
-                ({formatVelocity(biggestWinner.velocity)})
-              </span>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Biggest Loser */}
-      <div className="flex items-center gap-2 flex-1">
-        <div className="flex items-center justify-center w-7 h-7 rounded-full bg-red-100">
-          <TrendingDown className="w-4 h-4 text-red-600" />
-        </div>
-        <div>
-          <span className="text-xs text-slate-500">Biggest Loser</span>
-          <div className="flex items-center gap-1.5">
-            <span className="font-semibold text-slate-900">
-              {biggestLoser?.name || 'N/A'}
-            </span>
-            {biggestLoser && (
-              <span className="text-xs font-mono text-red-600">
-                ({formatVelocity(biggestLoser.velocity)})
-              </span>
-            )}
-          </div>
-        </div>
       </div>
     </div>
   );
