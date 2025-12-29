@@ -61,16 +61,25 @@ export const cachedDataService = {
       previousIntentVolumes
     );
 
+    // Calculate total priority volume for priority market share
+    const totalPriorityVolume = brandVolumes.reduce((sum, b) => sum + b.priorityVolume, 0);
+
     // Build dashboard response
     return {
       // Overview metrics
       overview: {
         totalMarketVolume,
+        totalPriorityVolume,
         yourBrand: {
           name: ownBrand?.displayName,
           volume: ownBrandData?.totalVolume || 0,
+          priorityKeyword: ownBrandData?.priorityKeyword || '',
+          priorityVolume: ownBrandData?.priorityVolume || 0,
           marketShare: totalMarketVolume > 0
             ? Math.round((ownBrandData?.totalVolume || 0) / totalMarketVolume * 1000) / 10
+            : 0,
+          priorityMarketShare: totalPriorityVolume > 0
+            ? Math.round((ownBrandData?.priorityVolume || 0) / totalPriorityVolume * 1000) / 10
             : 0
         },
         marketShareMomentum: metrics.marketShareMomentum,
@@ -91,8 +100,13 @@ export const cachedDataService = {
           brandId: brand.brandId,
           brandName: brand.brandName,
           volume: brand.totalVolume,
+          priorityKeyword: brand.priorityKeyword,
+          priorityVolume: brand.priorityVolume,
           marketShare: totalMarketVolume > 0
             ? Math.round(brand.totalVolume / totalMarketVolume * 1000) / 10
+            : 0,
+          priorityMarketShare: totalPriorityVolume > 0
+            ? Math.round(brand.priorityVolume / totalPriorityVolume * 1000) / 10
             : 0,
           velocity: velocity,
           isOwnBrand: brand.brandId === ownBrand?.id,

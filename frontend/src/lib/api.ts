@@ -97,10 +97,14 @@ export interface DashboardResponse {
   data: {
     overview: {
       totalMarketVolume: number;
+      totalPriorityVolume: number;
       yourBrand: {
         name: string;
         volume: number;
+        priorityKeyword: string;
+        priorityVolume: number;
         marketShare: number;
+        priorityMarketShare: number;
       };
       marketShareMomentum: any;
       competitivePressure: any;
@@ -111,7 +115,10 @@ export interface DashboardResponse {
       brandId: string;
       brandName: string;
       volume: number;
+      priorityKeyword: string;
+      priorityVolume: number;
       marketShare: number;
+      priorityMarketShare: number;
       velocity?: number;
       isOwnBrand: boolean;
       color?: string;

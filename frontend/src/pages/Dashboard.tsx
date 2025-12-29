@@ -5,7 +5,9 @@ import { MarketOpportunityCard, TAMTrendChart } from '../components/Zone2Compone
 import { CompetitorTable } from '../components/CompetitorTable'
 import { CompetitiveTrendChart } from '../components/CompetitiveTrendChart'
 import { AnomaliesPanel } from '../components/AnomaliesPanel'
+import { VolumeToggle } from '../components/VolumeToggle'
 import { useDashboard } from '../hooks/useDashboard'
+import { useVolumeView } from '../contexts/VolumeViewContext'
 import {
   mockBrandData,
   mockShareOfSearch,
@@ -70,6 +72,7 @@ function generateScaledTrendData(
 
 export function Dashboard() {
   const dashboardQuery = useDashboard();
+  const { volumeView } = useVolumeView();
 
   const isLoading = dashboardQuery.isLoading;
   const isError = dashboardQuery.isError;
@@ -91,14 +94,19 @@ export function Dashboard() {
       ? {
           name: dashboardData.overview.yourBrand.name || 'Jacks.nl',
           searchVolume: dashboardData.overview.yourBrand.volume || mockBrandData.searchVolume,
+          priorityKeyword: dashboardData.overview.yourBrand.priorityKeyword || '',
+          priorityVolume: dashboardData.overview.yourBrand.priorityVolume || 0,
           growth: ownBrandEntry?.velocity ?? mockBrandData.growth,
           marketShare: dashboardData.overview.yourBrand.marketShare || mockBrandData.marketShare,
+          priorityMarketShare: dashboardData.overview.yourBrand.priorityMarketShare || 0,
         }
-      : mockBrandData,
+      : { ...mockBrandData, priorityKeyword: '', priorityVolume: 0, priorityMarketShare: 0 },
 
     shareOfSearch: dashboardData?.overview?.yourBrand
       ? {
-          current: dashboardData.overview.yourBrand.marketShare || mockShareOfSearch.current,
+          current: volumeView === 'priority'
+            ? (dashboardData.overview.yourBrand.priorityMarketShare || mockShareOfSearch.current)
+            : (dashboardData.overview.yourBrand.marketShare || mockShareOfSearch.current),
           change: mockShareOfSearch.change, // Change not in dashboard response
           weeklyHistory: mockShareOfSearch.weeklyHistory,
         }
@@ -135,11 +143,19 @@ export function Dashboard() {
             id: String(b.rank),
             name: b.brandName,
             searchVolume: b.volume || 0,
+            priorityKeyword: b.priorityKeyword || '',
+            priorityVolume: b.priorityVolume || 0,
             growth: b.velocity || 0,
             status: 'normal' as 'normal' | 'watching' | 'threat',
             marketShare: b.marketShare || 0,
+            priorityMarketShare: b.priorityMarketShare || 0,
           }))
-      : mockCompetitors.filter((c) => c.name !== 'Jacks.nl'),
+      : mockCompetitors.filter((c) => c.name !== 'Jacks.nl').map(c => ({
+          ...c,
+          priorityKeyword: '',
+          priorityVolume: 0,
+          priorityMarketShare: 0,
+        })),
 
     // Generate trend data that matches actual brand volumes
     competitiveTrendData: dashboardData?.brands
@@ -237,9 +253,12 @@ export function Dashboard() {
           ZONE 1: Espresso Shot (Top Row - 50/50)
           =========================================== */}
       <section>
-        <h2 className="text-lg font-display font-semibold text-slate-800 mb-4 opacity-0 animate-fade-in">
-          Espresso Shot
-        </h2>
+        <div className="flex items-center justify-between mb-4 opacity-0 animate-fade-in">
+          <h2 className="text-lg font-display font-semibold text-slate-800">
+            Espresso Shot
+          </h2>
+          <VolumeToggle />
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Card A: Share of Search (Hero Metric) */}
           <ShareOfSearchCard
@@ -251,6 +270,8 @@ export function Dashboard() {
           {/* Card B: Brand Search Volume with Market Rank */}
           <BrandVolumeCard
             volume={transformedData.brandData.searchVolume}
+            priorityKeyword={transformedData.brandData.priorityKeyword}
+            priorityVolume={transformedData.brandData.priorityVolume}
             growth={transformedData.brandData.growth}
             marketRank={transformedData.marketRank}
           />
