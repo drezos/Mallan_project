@@ -20,9 +20,9 @@ export function ThisWeekStory({ data }: ThisWeekStoryProps) {
     <div className="card p-5 opacity-0 animate-slide-up animation-delay-200">
       <div className="flex items-center justify-between mb-4">
         <h3 className="font-display font-semibold text-slate-900">
-          This Week's Story
+          Your Monthly Position
         </h3>
-        <InfoTooltip text="Compares your weekly growth against total market growth. Velocity = week-over-week % change in search volume." />
+        <InfoTooltip text="Compares your monthly growth against total market growth. Velocity = month-over-month % change in search volume." />
       </div>
 
       <div className="space-y-4">
@@ -49,7 +49,7 @@ function MarketComparison({ insights }: { insights: StoryInsights }) {
         )}>
           {formatVelocity(marketVelocity)}
         </span>
-        <span className="text-slate-400">(WoW)</span>
+        <span className="text-slate-400">(MoM)</span>
         <span className="text-slate-400">→</span>
         <span className="text-slate-600">You</span>
         <span className={cn(
@@ -58,7 +58,7 @@ function MarketComparison({ insights }: { insights: StoryInsights }) {
         )}>
           {formatVelocity(brandVelocity)}
         </span>
-        <span className="text-slate-400">(WoW)</span>
+        <span className="text-slate-400">(MoM)</span>
       </div>
 
       <div className={cn(

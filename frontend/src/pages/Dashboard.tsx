@@ -447,6 +447,8 @@ export function Dashboard() {
             totalTAM={transformedData.tam.total}
             tamGrowth={transformedData.tamGrowth}
             brandName={brewedContextData.ownBrand.name}
+            monthlyBrandVelocity={brewedContextData.ownBrand.velocity}
+            monthlyMarketVelocity={brewedContextData.market.velocity}
           />
         </div>
 
