@@ -133,6 +133,11 @@ export interface DashboardResponse {
       severity: string;
       message: string;
     }>;
+    // Pre-calculated competitor highlights for stable display
+    competitorHighlights?: {
+      fastestGrowing: { name: string; velocity: number };
+      biggestDecline: { name: string; velocity: number };
+    };
     metrics: any;
     fetchedAt: string;
     lastUpdated?: string;
