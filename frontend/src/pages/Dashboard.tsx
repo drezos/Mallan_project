@@ -35,6 +35,41 @@ function extractBrandName(message: string, brands: string[]): string | undefined
   return undefined;
 }
 
+// Helper function to format velocity as percentage string
+function formatVelocity(velocity: number): string {
+  const sign = velocity >= 0 ? '+' : '';
+  return `${sign}${velocity.toFixed(1)}%`;
+}
+
+// Helper function to update anomaly message with actual competitor velocity
+function updateAnomalyMessageWithVelocity(
+  message: string,
+  brandName: string | undefined,
+  competitors: Array<{ name: string; growth: number }>
+): string {
+  if (!brandName) return message;
+
+  // Find the competitor's actual velocity
+  const competitor = competitors.find(c =>
+    c.name.toLowerCase() === brandName.toLowerCase()
+  );
+
+  if (!competitor) return message;
+
+  const actualVelocity = competitor.growth;
+  const formattedVelocity = formatVelocity(actualVelocity);
+
+  // Replace hardcoded percentages in the message with actual velocity
+  // Patterns to match: "X.X%", "+X.X%", "-X.X%", "up X.X%"
+  const updatedMessage = message
+    .replace(/\b(\d+\.?\d*)%\s*(weekly growth|WoW)/gi, `${formattedVelocity} $2`)
+    .replace(/up\s+(\d+\.?\d*)%/gi, `up ${formattedVelocity}`)
+    .replace(/showing\s+(\d+\.?\d*)%/gi, `showing ${formattedVelocity}`)
+    .replace(/growing\s+(\d+\.?\d*)%/gi, `growing ${formattedVelocity}`);
+
+  return updatedMessage;
+}
+
 // Helper function to scale mock trend data to match actual brand volumes
 function generateScaledTrendData(
   brands: Array<{ brandName: string; volume: number }>,
@@ -90,6 +125,38 @@ export function Dashboard() {
   const ownBrandEntry = dashboardData?.brands?.find(b => b.isOwnBrand);
   const ownBrandRank = ownBrandEntry?.rank || mockMarketRank.current;
 
+  // Get all brand names for matching alerts to competitors
+  const allBrandNames = dashboardData?.brands
+    ? dashboardData.brands.map(b => b.brandName)
+    : mockCompetitors.map(c => c.name);
+
+  // Compute competitors first so it can be used by anomalies transformation
+  const computedCompetitors = dashboardData?.brands
+    ? dashboardData.brands
+        .filter((b) => !b.isOwnBrand)
+        .map((b) => ({
+          id: String(b.rank),
+          name: b.brandName,
+          searchVolume: b.volume || 0,
+          priorityKeyword: b.priorityKeyword || '',
+          priorityVolume: b.priorityVolume || 0,
+          growth: b.velocity || 0,
+          status: 'normal' as 'normal' | 'watching' | 'threat',
+          marketShare: b.marketShare || 0,
+          priorityMarketShare: b.priorityMarketShare || 0,
+        }))
+    : mockCompetitors.filter((c) => c.name !== 'Jacks.nl').map(c => ({
+        id: c.id,
+        name: c.name,
+        searchVolume: c.searchVolume,
+        priorityKeyword: '',
+        priorityVolume: 0,
+        growth: c.weeklyChange, // Map weeklyChange to growth for consistency
+        status: 'normal' as 'normal' | 'watching' | 'threat',
+        marketShare: c.marketShare,
+        priorityMarketShare: 0,
+      }));
+
   // Transform API data to component format
   const transformedData = {
     brandData: dashboardData?.overview?.yourBrand
@@ -138,26 +205,8 @@ export function Dashboard() {
       : mockTAM,
     tamGrowth: mockTAMGrowth,
 
-    competitors: dashboardData?.brands
-      ? dashboardData.brands
-          .filter((b) => !b.isOwnBrand) // Exclude own brand (added separately via brandData)
-          .map((b) => ({
-            id: String(b.rank),
-            name: b.brandName,
-            searchVolume: b.volume || 0,
-            priorityKeyword: b.priorityKeyword || '',
-            priorityVolume: b.priorityVolume || 0,
-            growth: b.velocity || 0,
-            status: 'normal' as 'normal' | 'watching' | 'threat',
-            marketShare: b.marketShare || 0,
-            priorityMarketShare: b.priorityMarketShare || 0,
-          }))
-      : mockCompetitors.filter((c) => c.name !== 'Jacks.nl').map(c => ({
-          ...c,
-          priorityKeyword: '',
-          priorityVolume: 0,
-          priorityMarketShare: 0,
-        })),
+    // Use precomputed competitors for consistency with anomalies
+    competitors: computedCompetitors,
 
     // Generate trend data that matches actual brand volumes
     competitiveTrendData: dashboardData?.brands
@@ -168,28 +217,32 @@ export function Dashboard() {
       : topRivals,
 
     anomalies: (() => {
-      // Get all brand names for matching alerts to competitors
-      const allBrandNames = dashboardData?.brands
-        ? dashboardData.brands.map(b => b.brandName)
-        : mockCompetitors.map(c => c.name);
-
       if (dashboardData?.alerts?.length) {
-        return dashboardData.alerts.map((a, index) => ({
-          id: String(index + 1),
-          type: a.type,
-          impact: (a.severity === 'high' ? 'high' : 'info') as 'high' | 'info',
-          title: a.message.split(':')[0] || 'Alert',
-          message: a.message,
-          metric: a.type === 'competitor' ? 'Search Volume' : 'Intent Shift',
-          timestamp: new Date().toISOString(),
-          brandName: extractBrandName(a.message, allBrandNames),
-        }));
+        return dashboardData.alerts.map((a, index) => {
+          const brandName = extractBrandName(a.message, allBrandNames);
+          return {
+            id: String(index + 1),
+            type: a.type,
+            impact: (a.severity === 'high' ? 'high' : 'info') as 'high' | 'info',
+            title: a.message.split(':')[0] || 'Alert',
+            // Update message with actual velocity from competitor data
+            message: updateAnomalyMessageWithVelocity(a.message, brandName, computedCompetitors),
+            metric: a.type === 'competitor' ? 'Search Volume' : 'Intent Shift',
+            timestamp: new Date().toISOString(),
+            brandName,
+          };
+        });
       }
-      // For mock anomalies, extract brand name from title
-      return mockAnomalies.map(a => ({
-        ...a,
-        brandName: extractBrandName(a.title + ' ' + a.message, allBrandNames),
-      }));
+      // For mock anomalies, update messages with actual velocity data
+      return mockAnomalies.map(a => {
+        const brandName = extractBrandName(a.title + ' ' + a.message, allBrandNames);
+        return {
+          ...a,
+          // Update message with actual velocity from competitor data
+          message: updateAnomalyMessageWithVelocity(a.message, brandName, computedCompetitors),
+          brandName,
+        };
+      });
     })(),
   };
 
