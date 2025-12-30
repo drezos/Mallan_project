@@ -276,7 +276,15 @@ export function Dashboard() {
   }, [dashboardData, transformedData]);
 
   // Calculate fastest growing and biggest decline competitors
+  // Prefers backend-cached highlights for stability, falls back to local calculation
   const competitorHighlights = useMemo(() => {
+    // Prefer pre-calculated highlights from backend cache for maximum stability
+    // These are computed once when the cache is built and remain constant
+    if (dashboardData?.competitorHighlights) {
+      return dashboardData.competitorHighlights;
+    }
+
+    // Fallback: Calculate locally with stable sorting (for mock data or old cache)
     const competitors = transformedData.competitors;
 
     if (competitors.length === 0) {
@@ -287,23 +295,47 @@ export function Dashboard() {
     }
 
     // Helper to get velocity from competitor (handles both API and mock data formats)
+    // Round to 1 decimal place to avoid floating-point comparison issues
     const getVelocity = (c: typeof competitors[0]): number => {
-      return ('growth' in c ? c.growth : 0) || 0;
+      const raw = ('growth' in c ? c.growth : 0) || 0;
+      return Math.round(raw * 10) / 10;
     };
 
-    const fastestGrowing = competitors.reduce((max, c) =>
-      getVelocity(c) > getVelocity(max) ? c : max
-    );
+    // Helper to get volume for tie-breaking
+    const getVolume = (c: typeof competitors[0]): number => {
+      return c.searchVolume || 0;
+    };
 
-    const biggestDecline = competitors.reduce((min, c) =>
-      getVelocity(c) < getVelocity(min) ? c : min
-    );
+    // Stable sort with tie-breakers:
+    // 1. Primary: velocity (descending for fastest, ascending for slowest)
+    // 2. Secondary: volume (descending) - larger brands win ties
+    // 3. Tertiary: name (alphabetical) - final deterministic tie-breaker
+    const sortedByGrowth = [...competitors].sort((a, b) => {
+      const velocityA = getVelocity(a);
+      const velocityB = getVelocity(b);
+
+      // Primary: velocity descending (highest first)
+      if (velocityB !== velocityA) return velocityB - velocityA;
+
+      // Secondary: volume descending (larger brands win ties)
+      const volumeA = getVolume(a);
+      const volumeB = getVolume(b);
+      if (volumeB !== volumeA) return volumeB - volumeA;
+
+      // Tertiary: name alphabetical (deterministic final tie-breaker)
+      return a.name.localeCompare(b.name);
+    });
+
+    // Fastest growing = first element (highest velocity)
+    const fastestGrowing = sortedByGrowth[0];
+    // Biggest decline = last element (lowest velocity)
+    const biggestDecline = sortedByGrowth[sortedByGrowth.length - 1];
 
     return {
       fastestGrowing: { name: fastestGrowing.name, velocity: getVelocity(fastestGrowing) },
       biggestDecline: { name: biggestDecline.name, velocity: getVelocity(biggestDecline) },
     };
-  }, [transformedData.competitors]);
+  }, [dashboardData?.competitorHighlights, transformedData.competitors]);
 
   // Filter anomalies for competitor-specific alerts only (for Market Alerts panel)
   const competitorSpecificAnomalies = useMemo(() => {

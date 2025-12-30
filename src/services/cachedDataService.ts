@@ -117,6 +117,49 @@ export const cachedDataService = {
         };
       }),
 
+      // Pre-calculated competitor highlights for stable display
+      // Uses deterministic sorting to ensure same results on every cache read
+      competitorHighlights: (() => {
+        // Build competitor data with velocities
+        const competitors = brandVolumes
+          .filter(brand => brand.brandId !== ownBrand?.id)
+          .map(brand => {
+            const previousBrand = previousBrandData.find(p => p.brandId === brand.brandId);
+            const previousVolume = previousBrand?.totalVolume || brand.totalVolume;
+            // Round velocity to 1 decimal to avoid floating-point issues
+            const velocity = previousVolume > 0
+              ? Math.round(((brand.totalVolume - previousVolume) / previousVolume) * 1000) / 10
+              : 0;
+            return {
+              name: brand.brandName,
+              volume: brand.totalVolume,
+              velocity
+            };
+          });
+
+        if (competitors.length === 0) {
+          return {
+            fastestGrowing: { name: 'N/A', velocity: 0 },
+            biggestDecline: { name: 'N/A', velocity: 0 }
+          };
+        }
+
+        // Stable sort with tie-breakers:
+        // 1. Primary: velocity (descending)
+        // 2. Secondary: volume (descending) - larger brands win ties
+        // 3. Tertiary: name (alphabetical) - deterministic final tie-breaker
+        const sorted = [...competitors].sort((a, b) => {
+          if (b.velocity !== a.velocity) return b.velocity - a.velocity;
+          if (b.volume !== a.volume) return b.volume - a.volume;
+          return a.name.localeCompare(b.name);
+        });
+
+        return {
+          fastestGrowing: { name: sorted[0].name, velocity: sorted[0].velocity },
+          biggestDecline: { name: sorted[sorted.length - 1].name, velocity: sorted[sorted.length - 1].velocity }
+        };
+      })(),
+
       // Trends
       trends: trends,
 
