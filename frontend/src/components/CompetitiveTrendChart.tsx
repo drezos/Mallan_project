@@ -17,52 +17,67 @@ interface CompetitiveTrendChartProps {
   topRivals: string[]
 }
 
-// Color palette for competitors
+// Color palette for competitors - matches brand colors from backend config
 const competitorColors: Record<string, string> = {
-  'Jacks.nl': '#2d6e40',
-  'Holland Casino': '#64748b',
-  'Toto': '#94a3b8',
-  'Unibet': '#a1a1aa',
-  'BetCity': '#ef4444', // Red for high threat
-  'Bet365': '#9ca3af',
-  'Circus': '#a8a29e',
-  'Kansino': '#fb923c', // Orange for watching
-  '711': '#d4d4d8',
-  'BetMGM': '#c4b5fd',
-  'LeoVegas': '#d6d3d1',
+  // Own brand (Jacks)
+  'Jacks Casino': '#1B4D3E',
+  'Jacks.nl': '#1B4D3E', // Legacy fallback
+  // Competitors
+  'Holland Casino': '#C4A000',
+  'Toto': '#FF6B00',
+  'Unibet': '#14805E',
+  'BetCity': '#FF4444', // Red for high threat
+  'Bet365': '#027B5B',
+  'Circus': '#E63946',
+  'Kansino': '#6B5B95',
+  '711': '#2E8B57',
+  'BetMGM': '#B8860B',
+  'LeoVegas': '#FF6600',
+  'OneCasino': '#4169E1',
+  'TonyBet': '#1E90FF',
+  'Hard Rock Casino': '#8B0000',
 }
 
-const CustomTooltip = ({ active, payload, label }: any) => {
-  if (!active || !payload || !payload.length) return null
+// Factory function to create tooltip with dynamic brand name
+const createCustomTooltip = (ownBrandName: string) => {
+  return ({ active, payload, label }: any) => {
+    if (!active || !payload || !payload.length) return null
 
-  // Sort by value descending
-  const sorted = [...payload].sort((a, b) => (b.value || 0) - (a.value || 0))
+    // Sort by value descending
+    const sorted = [...payload].sort((a, b) => (b.value || 0) - (a.value || 0))
 
-  return (
-    <div className="bg-white/95 backdrop-blur-sm rounded-lg shadow-elevated border border-slate-200 p-3 max-h-64 overflow-y-auto">
-      <p className="text-xs font-medium text-slate-500 mb-2 border-b border-slate-100 pb-2">{label}</p>
-      {sorted.map((entry: any, index: number) => (
-        <div key={index} className="flex items-center justify-between gap-4 py-0.5">
-          <div className="flex items-center gap-2">
-            <div 
-              className="w-2 h-2 rounded-full shrink-0" 
-              style={{ backgroundColor: entry.stroke }}
-            />
-            <span className={`text-xs ${entry.dataKey === 'Jacks.nl' ? 'font-semibold text-forest-700' : 'text-slate-600'}`}>
-              {entry.dataKey}
-            </span>
-          </div>
-          <span className={`text-xs font-mono ${entry.dataKey === 'Jacks.nl' ? 'font-bold text-forest-700' : 'text-slate-900'}`}>
-            {formatNumber(entry.value)}
-          </span>
-        </div>
-      ))}
-    </div>
-  )
+    return (
+      <div className="bg-white/95 backdrop-blur-sm rounded-lg shadow-elevated border border-slate-200 p-3 max-h-64 overflow-y-auto">
+        <p className="text-xs font-medium text-slate-500 mb-2 border-b border-slate-100 pb-2">{label}</p>
+        {sorted.map((entry: any, index: number) => {
+          const isOwnBrand = entry.dataKey === ownBrandName
+          return (
+            <div key={index} className="flex items-center justify-between gap-4 py-0.5">
+              <div className="flex items-center gap-2">
+                <div
+                  className="w-2 h-2 rounded-full shrink-0"
+                  style={{ backgroundColor: entry.stroke }}
+                />
+                <span className={`text-xs ${isOwnBrand ? 'font-semibold text-forest-700' : 'text-slate-600'}`}>
+                  {entry.dataKey}
+                </span>
+              </div>
+              <span className={`text-xs font-mono ${isOwnBrand ? 'font-bold text-forest-700' : 'text-slate-900'}`}>
+                {formatNumber(entry.value)}
+              </span>
+            </div>
+          )
+        })}
+      </div>
+    )
+  }
 }
 
 export function CompetitiveTrendChart({ data, brandName, competitors, topRivals }: CompetitiveTrendChartProps) {
   const [hoveredLine, setHoveredLine] = useState<string | null>(null)
+
+  // Create tooltip component with dynamic brand name
+  const CustomTooltip = createCustomTooltip(brandName)
 
   // Determine line styles based on hover state
   const getLineStyle = (name: string) => {
@@ -98,7 +113,7 @@ export function CompetitiveTrendChart({ data, brandName, competitors, topRivals 
     <div className="card p-4 h-full opacity-0 animate-slide-up animation-delay-500">
       <div className="mb-3">
         <h3 className="font-display font-semibold text-slate-900 text-sm">Volume Trend: Us vs. Top 10</h3>
-        <p className="text-xs text-slate-500">12-week search volume trends (hover to highlight)</p>
+        <p className="text-xs text-slate-500">12-week priority keyword volume trends (hover to highlight)</p>
       </div>
 
       {/* Legend */}

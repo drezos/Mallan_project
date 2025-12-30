@@ -21,8 +21,8 @@ export function calculateSoS(volume: number, totalMarket: number): number {
 // ===========================================
 
 export const mockBrandData = {
-  name: 'Jacks.nl',
-  searchVolume: 2400,
+  name: 'Jacks Casino',
+  searchVolume: 165000, // Priority keyword volume for "jacks casino"
   growth: 8.2,
   marketShare: 8.2,
 };
@@ -88,42 +88,44 @@ export const mockTAMTrendData = [
 
 // ===========================================
 // COMPETITORS
+// Note: searchVolume values represent priority keyword volume (highest single keyword per brand)
 // ===========================================
 
 export const mockCompetitors = [
-  { id: 1, name: 'Toto', searchVolume: 8500, monthlyChange: 5.2, marketShare: 18.5, velocityTrend: 'up', riskLevel: 'medium' },
-  { id: 2, name: 'Unibet', searchVolume: 7200, monthlyChange: -2.1, marketShare: 15.8, velocityTrend: 'down', riskLevel: 'low' },
-  { id: 3, name: 'Bet365', searchVolume: 6800, monthlyChange: 8.5, marketShare: 14.9, velocityTrend: 'up', riskLevel: 'high' },
-  { id: 4, name: 'BetCity', searchVolume: 5500, monthlyChange: 3.2, marketShare: 12.1, velocityTrend: 'up', riskLevel: 'medium' },
-  { id: 5, name: 'Holland Casino', searchVolume: 4800, monthlyChange: 1.5, marketShare: 10.5, velocityTrend: 'stable', riskLevel: 'low' },
-  { id: 6, name: 'Jacks.nl', searchVolume: 2400, monthlyChange: 8.2, marketShare: 8.2, velocityTrend: 'up', riskLevel: 'none' },
-  { id: 7, name: 'Circus', searchVolume: 2100, monthlyChange: -1.8, marketShare: 4.6, velocityTrend: 'down', riskLevel: 'low' },
-  { id: 8, name: '711', searchVolume: 1800, monthlyChange: 2.5, marketShare: 3.9, velocityTrend: 'up', riskLevel: 'low' },
-  { id: 9, name: 'Kansino', searchVolume: 1500, monthlyChange: 12.3, marketShare: 3.3, velocityTrend: 'up', riskLevel: 'high' },
-  { id: 10, name: 'BetMGM', searchVolume: 1200, monthlyChange: 15.8, marketShare: 2.6, velocityTrend: 'up', riskLevel: 'high' },
-  { id: 11, name: 'LeoVegas', searchVolume: 1100, monthlyChange: -0.5, marketShare: 2.4, velocityTrend: 'stable', riskLevel: 'low' },
+  { id: 1, name: 'OneCasino', searchVolume: 250000, monthlyChange: 5.2, marketShare: 18.5, velocityTrend: 'up', riskLevel: 'medium' },
+  { id: 2, name: 'BetCity', searchVolume: 200000, monthlyChange: 3.2, marketShare: 15.8, velocityTrend: 'up', riskLevel: 'high' },
+  { id: 3, name: 'Toto', searchVolume: 180000, monthlyChange: 4.5, marketShare: 14.9, velocityTrend: 'up', riskLevel: 'medium' },
+  { id: 4, name: 'Jacks Casino', searchVolume: 165000, monthlyChange: 8.2, marketShare: 12.1, velocityTrend: 'up', riskLevel: 'none' },
+  { id: 5, name: 'Holland Casino', searchVolume: 150000, monthlyChange: 1.5, marketShare: 10.5, velocityTrend: 'stable', riskLevel: 'low' },
+  { id: 6, name: 'Unibet', searchVolume: 120000, monthlyChange: -2.1, marketShare: 8.2, velocityTrend: 'down', riskLevel: 'low' },
+  { id: 7, name: 'Bet365', searchVolume: 100000, monthlyChange: 8.5, marketShare: 7.0, velocityTrend: 'up', riskLevel: 'medium' },
+  { id: 8, name: 'Circus', searchVolume: 80000, monthlyChange: -1.8, marketShare: 5.6, velocityTrend: 'down', riskLevel: 'low' },
+  { id: 9, name: 'Kansino', searchVolume: 60000, monthlyChange: 12.3, marketShare: 4.2, velocityTrend: 'up', riskLevel: 'high' },
+  { id: 10, name: 'LeoVegas', searchVolume: 50000, monthlyChange: -0.5, marketShare: 3.5, velocityTrend: 'stable', riskLevel: 'low' },
+  { id: 11, name: '711', searchVolume: 40000, monthlyChange: 2.5, marketShare: 2.8, velocityTrend: 'up', riskLevel: 'low' },
 ];
 
 // Top rivals for competitive trend chart
-export const topRivals = ['Toto', 'Unibet', 'Bet365', 'BetCity', 'Holland Casino'];
+export const topRivals = ['OneCasino', 'BetCity', 'Toto', 'Holland Casino', 'Unibet'];
 
 // ===========================================
 // COMPETITIVE TREND DATA (12 weeks)
+// Note: Values represent priority keyword volume per brand
 // ===========================================
 
 export const mockCompetitiveTrendData = [
-  { week: 'W1', 'Jacks.nl': 2100, 'Toto': 7800, 'Unibet': 7500, 'Bet365': 6200, 'BetCity': 5100 },
-  { week: 'W2', 'Jacks.nl': 2150, 'Toto': 7900, 'Unibet': 7400, 'Bet365': 6300, 'BetCity': 5200 },
-  { week: 'W3', 'Jacks.nl': 2080, 'Toto': 8000, 'Unibet': 7350, 'Bet365': 6400, 'BetCity': 5150 },
-  { week: 'W4', 'Jacks.nl': 2200, 'Toto': 8100, 'Unibet': 7300, 'Bet365': 6500, 'BetCity': 5250 },
-  { week: 'W5', 'Jacks.nl': 2180, 'Toto': 8150, 'Unibet': 7250, 'Bet365': 6550, 'BetCity': 5300 },
-  { week: 'W6', 'Jacks.nl': 2250, 'Toto': 8200, 'Unibet': 7200, 'Bet365': 6600, 'BetCity': 5350 },
-  { week: 'W7', 'Jacks.nl': 2220, 'Toto': 8250, 'Unibet': 7180, 'Bet365': 6650, 'BetCity': 5400 },
-  { week: 'W8', 'Jacks.nl': 2300, 'Toto': 8300, 'Unibet': 7150, 'Bet365': 6700, 'BetCity': 5450 },
-  { week: 'W9', 'Jacks.nl': 2350, 'Toto': 8400, 'Unibet': 7180, 'Bet365': 6750, 'BetCity': 5480 },
-  { week: 'W10', 'Jacks.nl': 2320, 'Toto': 8450, 'Unibet': 7200, 'Bet365': 6780, 'BetCity': 5500 },
-  { week: 'W11', 'Jacks.nl': 2380, 'Toto': 8480, 'Unibet': 7210, 'Bet365': 6800, 'BetCity': 5520 },
-  { week: 'W12', 'Jacks.nl': 2400, 'Toto': 8500, 'Unibet': 7200, 'Bet365': 6800, 'BetCity': 5500 },
+  { week: 'W1', 'Jacks Casino': 157000, 'OneCasino': 238000, 'BetCity': 190000, 'Toto': 171000, 'Holland Casino': 143000, 'Unibet': 114000 },
+  { week: 'W2', 'Jacks Casino': 158000, 'OneCasino': 240000, 'BetCity': 192000, 'Toto': 173000, 'Holland Casino': 144000, 'Unibet': 115000 },
+  { week: 'W3', 'Jacks Casino': 159000, 'OneCasino': 242000, 'BetCity': 193000, 'Toto': 174000, 'Holland Casino': 145000, 'Unibet': 116000 },
+  { week: 'W4', 'Jacks Casino': 160000, 'OneCasino': 244000, 'BetCity': 194000, 'Toto': 175000, 'Holland Casino': 146000, 'Unibet': 117000 },
+  { week: 'W5', 'Jacks Casino': 161000, 'OneCasino': 245000, 'BetCity': 195000, 'Toto': 176000, 'Holland Casino': 147000, 'Unibet': 117500 },
+  { week: 'W6', 'Jacks Casino': 162000, 'OneCasino': 246000, 'BetCity': 196000, 'Toto': 177000, 'Holland Casino': 148000, 'Unibet': 118000 },
+  { week: 'W7', 'Jacks Casino': 162500, 'OneCasino': 247000, 'BetCity': 197000, 'Toto': 177500, 'Holland Casino': 148500, 'Unibet': 118500 },
+  { week: 'W8', 'Jacks Casino': 163000, 'OneCasino': 248000, 'BetCity': 198000, 'Toto': 178000, 'Holland Casino': 149000, 'Unibet': 119000 },
+  { week: 'W9', 'Jacks Casino': 163500, 'OneCasino': 248500, 'BetCity': 198500, 'Toto': 178500, 'Holland Casino': 149200, 'Unibet': 119200 },
+  { week: 'W10', 'Jacks Casino': 164000, 'OneCasino': 249000, 'BetCity': 199000, 'Toto': 179000, 'Holland Casino': 149500, 'Unibet': 119500 },
+  { week: 'W11', 'Jacks Casino': 164500, 'OneCasino': 249500, 'BetCity': 199500, 'Toto': 179500, 'Holland Casino': 149700, 'Unibet': 119700 },
+  { week: 'W12', 'Jacks Casino': 165000, 'OneCasino': 250000, 'BetCity': 200000, 'Toto': 180000, 'Holland Casino': 150000, 'Unibet': 120000 },
 ];
 
 // ===========================================
