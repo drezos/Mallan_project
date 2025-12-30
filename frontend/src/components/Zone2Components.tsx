@@ -39,7 +39,7 @@ export function MarketOpportunityCard({ yourBrand, competitors, generic, total }
       <div className="flex items-start justify-between mb-4">
         <div>
           <h3 className="font-display font-semibold text-slate-900">Search Volume Overview</h3>
-          <p className="text-xs text-slate-500 mt-0.5">Your share of the total addressable market</p>
+          <p className="text-xs text-slate-500 mt-0.5">Your share of the total addressable market (Monthly)</p>
         </div>
         <InfoTooltip text="Your share of total branded searches in the Dutch iGaming market. 'Your Brand' = Jacks keyword searches. 'Competitors' = competitor brand searches. 'Generic' = non-branded casino searches." />
       </div>
@@ -124,6 +124,9 @@ interface TAMTrendChartProps {
   totalTAM: number
   tamGrowth: number
   brandName?: string
+  // Monthly velocity data for badge consistency with "Your Monthly Position" card
+  monthlyBrandVelocity?: number
+  monthlyMarketVelocity?: number
 }
 
 const chartColors = {
@@ -158,14 +161,26 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   )
 }
 
-export function TAMTrendChart({ data, totalTAM, tamGrowth, brandName = 'Jacks.nl' }: TAMTrendChartProps) {
+export function TAMTrendChart({
+  data,
+  totalTAM,
+  tamGrowth,
+  brandName = 'Jacks.nl',
+  monthlyBrandVelocity,
+  monthlyMarketVelocity,
+}: TAMTrendChartProps) {
   const isGrowthPositive = tamGrowth >= 0
-  
-  // Calculate brand performance
+
+  // Calculate brand performance for the 12-week chart display
   const firstBrand = data[0]?.yourBrand || 0
   const lastBrand = data[data.length - 1]?.yourBrand || 0
   const brandGrowth = ((lastBrand - firstBrand) / firstBrand * 100)
-  const isOutperforming = brandGrowth > tamGrowth
+
+  // Use monthly velocity for badge (if provided) to stay consistent with "Your Monthly Position" card
+  // Otherwise fall back to 12-week chart calculation
+  const isOutperforming = monthlyBrandVelocity !== undefined && monthlyMarketVelocity !== undefined
+    ? monthlyBrandVelocity > monthlyMarketVelocity
+    : brandGrowth > tamGrowth
 
   return (
     <div className="card p-5 h-full opacity-0 animate-slide-up animation-delay-300">
