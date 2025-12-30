@@ -460,9 +460,12 @@ export function Dashboard() {
           ZONE 3: Threat Intelligence (Bottom Row - 2/3 + 1/3)
           =========================================== */}
       <section>
-        <h2 className="text-lg font-display font-semibold text-slate-800 mb-4 opacity-0 animate-fade-in animation-delay-400">
-          Competitive Roast
-        </h2>
+        <div className="mb-4 opacity-0 animate-fade-in animation-delay-400">
+          <h2 className="text-lg font-display font-semibold text-slate-800">
+            Competitive Roast
+          </h2>
+          <p className="text-sm text-slate-500">Weekly competitive intelligence</p>
+        </div>
 
         {/* Competitor Highlights - above the table */}
         <CompetitorHighlights
