@@ -27,7 +27,7 @@ export function KeyTakeaways({ data }: KeyTakeawaysProps) {
             Key Takeaways
           </h3>
         </div>
-        <InfoTooltip text="AI-generated insights based on your performance, market trends, and competitive position. Updated with each data refresh." />
+        <InfoTooltip text="AI-generated insights based on your monthly performance, market trends, and competitive position. Updated with each data refresh." />
       </div>
 
       <div className="space-y-3">

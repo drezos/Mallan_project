@@ -41,7 +41,7 @@ export function MarketOpportunityCard({ yourBrand, competitors, generic, total }
           <h3 className="font-display font-semibold text-slate-900">Search Volume Overview</h3>
           <p className="text-xs text-slate-500 mt-0.5">Your share of the total addressable market (Monthly)</p>
         </div>
-        <InfoTooltip text="Your share of total branded searches in the Dutch iGaming market. 'Your Brand' = Jacks keyword searches. 'Competitors' = competitor brand searches. 'Generic' = non-branded casino searches." />
+        <InfoTooltip text="Your share of total branded searches in the Dutch iGaming market (monthly data). 'Your Brand' = Jacks keyword searches. 'Competitors' = competitor brand searches. 'Generic' = non-branded casino searches." />
       </div>
 
       {/* Horizontal Stacked Bar */}
@@ -203,7 +203,7 @@ export function TAMTrendChart({
               isGrowthPositive ? 'text-forest-700 bg-forest-100' : 'text-red-700 bg-red-100'
             )}>
               {isGrowthPositive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-              {tamGrowth.toFixed(1)}%
+              {tamGrowth.toFixed(1)}% (12W)
             </div>
           </div>
           <p className="text-xs text-slate-400">searches this week</p>

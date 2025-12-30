@@ -98,7 +98,7 @@ export function CompetitiveTrendChart({ data, brandName, competitors, topRivals 
     <div className="card p-4 h-full opacity-0 animate-slide-up animation-delay-500">
       <div className="mb-3">
         <h3 className="font-display font-semibold text-slate-900 text-sm">Volume Trend: Us vs. Top 10</h3>
-        <p className="text-xs text-slate-500">Hover to highlight competitor</p>
+        <p className="text-xs text-slate-500">12-week search volume trends (hover to highlight)</p>
       </div>
 
       {/* Legend */}
