@@ -57,10 +57,9 @@ export interface CompetitorsResponse {
     competitors: Array<{
       id: number;
       name: string;
-      searchVolume: number;
-      marketShare: number;
-      weeklyChange: number;
-      monthlyChange: number;
+      searchVolume: number;         // Monthly search volume
+      marketShare: number;          // % of monthly market share
+      monthlyChange: number;        // Month-over-month % change (MoM)
       trend: string;
       riskLevel: string;
       velocityTrend: string;
@@ -96,30 +95,30 @@ export interface DashboardResponse {
   success: boolean;
   data: {
     overview: {
-      totalMarketVolume: number;
-      totalPriorityVolume: number;
+      totalMarketVolume: number;      // Total monthly market volume
+      totalPriorityVolume: number;    // Total monthly priority keyword volume
       yourBrand: {
         name: string;
-        volume: number;
+        volume: number;               // Monthly search volume
         priorityKeyword: string;
-        priorityVolume: number;
-        marketShare: number;
-        priorityMarketShare: number;
+        priorityVolume: number;       // Monthly priority keyword volume
+        marketShare: number;          // % of monthly market share
+        priorityMarketShare: number;  // % of monthly priority market share
       };
       marketShareMomentum: any;
       competitivePressure: any;
       playerSentiment: any;
     };
     brands: Array<{
-      rank: number;
+      rank: number;                   // Rank by monthly volume
       brandId: string;
       brandName: string;
-      volume: number;
+      volume: number;                 // Monthly search volume
       priorityKeyword: string;
-      priorityVolume: number;
-      marketShare: number;
-      priorityMarketShare: number;
-      velocity?: number;
+      priorityVolume: number;         // Monthly priority keyword volume
+      marketShare: number;            // % of monthly market share
+      priorityMarketShare: number;    // % of monthly priority market share
+      velocity?: number;              // Month-over-month % change (MoM)
       isOwnBrand: boolean;
       color?: string;
     }>;
@@ -261,11 +260,11 @@ export interface MetricsData {
       product: { volume: number; change: number };
       review: { volume: number; change: number };
     };
-    brandHealth: { shareOfSearch: number; searchVolume: number; weeklyChange: number; marketRank: number };
+    brandHealth: { shareOfSearch: number; searchVolume: number; monthlyChange: number; marketRank: number };
     sentimentVelocity: { score: number; trend: string; positiveRatio: number };
     marketOpportunity: {
       tam: number;
-      weeklyChange: number;
+      monthlyChange: number;
       trend: string;
       categories: Array<{ name: string; volume: number; percentage: number; trend: string }>;
     };
@@ -274,10 +273,9 @@ export interface MetricsData {
 
 export interface CompetitorData {
   name: string;
-  searchVolume: number;
-  marketShare: number;
-  weeklyChange: number;
-  monthlyChange: number;
+  searchVolume: number;         // Monthly search volume
+  marketShare: number;          // % of monthly market share
+  monthlyChange: number;        // Month-over-month % change (MoM)
   trend: string;
   riskLevel: string;
 }

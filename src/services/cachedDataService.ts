@@ -87,10 +87,13 @@ export const cachedDataService = {
         playerSentiment: metrics.playerSentimentVelocity
       },
 
-      // Brand rankings
+      // Brand rankings with monthly data
+      // Note: DataForSEO Google Ads API returns monthly search volumes
+      // Velocity is calculated as month-over-month change (MoM)
       brands: brandVolumes.map((brand, index) => {
         const previousBrand = previousBrandData.find(p => p.brandId === brand.brandId);
         const previousVolume = previousBrand?.totalVolume || brand.totalVolume;
+        // Month-over-month velocity calculation
         const velocity = previousVolume > 0
           ? Math.round(((brand.totalVolume - previousVolume) / previousVolume) * 1000) / 10
           : 0;
@@ -99,16 +102,16 @@ export const cachedDataService = {
           rank: index + 1,
           brandId: brand.brandId,
           brandName: brand.brandName,
-          volume: brand.totalVolume,
+          volume: brand.totalVolume,              // Monthly search volume
           priorityKeyword: brand.priorityKeyword,
-          priorityVolume: brand.priorityVolume,
+          priorityVolume: brand.priorityVolume,   // Monthly priority keyword volume
           marketShare: totalMarketVolume > 0
             ? Math.round(brand.totalVolume / totalMarketVolume * 1000) / 10
             : 0,
           priorityMarketShare: totalPriorityVolume > 0
             ? Math.round(brand.priorityVolume / totalPriorityVolume * 1000) / 10
             : 0,
-          velocity: velocity,
+          velocity: velocity,                     // Month-over-month % change
           isOwnBrand: brand.brandId === ownBrand?.id,
           color: brands.find(b => b.id === brand.brandId)?.color
         };

@@ -17,7 +17,7 @@ export function CompetitorHighlights({ fastestGrowing, biggestDecline }: Competi
       <div className="flex items-center gap-2 mb-4">
         <h3 className="font-display font-semibold text-slate-900">Competitor Highlights</h3>
         <InfoTooltip
-          text="Fastest Growing = competitor with highest positive velocity this week. Biggest Decline = competitor with most negative velocity."
+          text="Fastest Growing = competitor with highest positive velocity this month. Biggest Decline = competitor with most negative velocity."
           position="right"
         />
       </div>

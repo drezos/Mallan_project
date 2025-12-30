@@ -9,20 +9,20 @@ import { InfoTooltip } from './InfoTooltip'
 interface ShareOfSearchCardProps {
   current: number
   change: number
-  weeklyHistory: number[]
+  monthlyHistory: number[]
 }
 
-export function ShareOfSearchCard({ current, change, weeklyHistory }: ShareOfSearchCardProps) {
+export function ShareOfSearchCard({ current, change, monthlyHistory }: ShareOfSearchCardProps) {
   const isPositive = change >= 0
-  const maxVal = Math.max(...weeklyHistory)
-  const minVal = Math.min(...weeklyHistory)
+  const maxVal = Math.max(...monthlyHistory)
+  const minVal = Math.min(...monthlyHistory)
   const range = maxVal - minVal || 1
 
   return (
     <div className="card p-6 relative overflow-hidden opacity-0 animate-slide-up">
       {/* Background sparkline */}
       <div className="absolute inset-0 flex items-end opacity-20">
-        <svg className="w-full h-24" preserveAspectRatio="none" viewBox={`0 0 ${weeklyHistory.length - 1} 100`}>
+        <svg className="w-full h-24" preserveAspectRatio="none" viewBox={`0 0 ${monthlyHistory.length - 1} 100`}>
           <defs>
             <linearGradient id="sparklineGradient" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="#2d6e40" stopOpacity="0.4" />
@@ -30,17 +30,17 @@ export function ShareOfSearchCard({ current, change, weeklyHistory }: ShareOfSea
             </linearGradient>
           </defs>
           <path
-            d={weeklyHistory
+            d={monthlyHistory
               .map((val, i) => {
                 const x = i
                 const y = 100 - ((val - minVal) / range) * 100
                 return `${i === 0 ? 'M' : 'L'} ${x} ${y}`
               })
-              .join(' ') + ` L ${weeklyHistory.length - 1} 100 L 0 100 Z`}
+              .join(' ') + ` L ${monthlyHistory.length - 1} 100 L 0 100 Z`}
             fill="url(#sparklineGradient)"
           />
           <path
-            d={weeklyHistory
+            d={monthlyHistory
               .map((val, i) => {
                 const x = i
                 const y = 100 - ((val - minVal) / range) * 100
@@ -59,9 +59,9 @@ export function ShareOfSearchCard({ current, change, weeklyHistory }: ShareOfSea
         <div className="flex items-start justify-between">
           <div>
             <p className="text-sm font-medium text-slate-500">Market Share</p>
-            <p className="text-xs text-slate-400 mt-0.5">Share of Search</p>
+            <p className="text-xs text-slate-400 mt-0.5">Share of Search (Monthly)</p>
           </div>
-          <InfoTooltip text="Your share of all tracked brand searches in the Dutch iGaming market. Calculated as your brand volume divided by total market volume." />
+          <InfoTooltip text="Your share of all tracked brand searches in the Dutch iGaming market, based on monthly search volumes. Calculated as your brand's monthly volume divided by total market monthly volume." />
         </div>
 
         <div className="mt-4">
@@ -119,11 +119,11 @@ export function BrandVolumeCard({ volume, priorityKeyword, priorityVolume, growt
               {isPriorityView ? 'Priority Keyword Volume' : 'Brand Search Volume'}
             </p>
             <p className="text-xs text-slate-400 mt-0.5">
-              {isPriorityView ? 'Single highest-volume keyword' : 'Direct brand interest'}
+              {isPriorityView ? 'Single highest-volume keyword (Monthly)' : 'Direct brand interest (Monthly)'}
             </p>
           </div>
           <InfoTooltip text={isPriorityView
-            ? "Search volume for your top-performing keyword. Useful for comparing with SEMrush data which shows single keyword volumes."
+            ? "Monthly search volume for your top-performing keyword. Useful for comparing with SEMrush data which shows single keyword volumes."
             : "Total monthly searches for your brand keywords (e.g., 'Jacks Casino', 'Jacks.nl'). Higher volume indicates stronger brand awareness."
           } />
         </div>
@@ -132,7 +132,7 @@ export function BrandVolumeCard({ volume, priorityKeyword, priorityVolume, growt
           isPositive ? 'text-forest-700 bg-forest-100' : 'text-red-700 bg-red-100'
         )}>
           {isPositive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-          {formatPercentage(growth, true)}
+          {formatPercentage(growth, true)} MoM
         </div>
       </div>
 
@@ -155,7 +155,7 @@ export function BrandVolumeCard({ volume, priorityKeyword, priorityVolume, growt
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5">
             <span className="text-sm text-slate-500">Market Rank</span>
-            <InfoTooltip text="Your position among tracked competitors, ranked by search volume. Moving up means you're gaining visibility versus competitors." />
+            <InfoTooltip text="Your position among tracked competitors, ranked by monthly search volume. Moving up means you're gaining visibility versus competitors." />
           </div>
           <div className="flex items-center gap-2">
             <span className="text-2xl font-display font-bold text-slate-900">
@@ -182,9 +182,9 @@ export function BrandVolumeCard({ volume, priorityKeyword, priorityVolume, growt
           </div>
         </div>
         <p className="text-xs text-slate-400 mt-1">
-          {rankImproved && `Up ${marketRank.change} place${marketRank.change > 1 ? 's' : ''} from last week`}
-          {rankDeclined && `Down ${Math.abs(marketRank.change)} place${Math.abs(marketRank.change) > 1 ? 's' : ''} from last week`}
-          {marketRank.change === 0 && 'Same position as last week'}
+          {rankImproved && `Up ${marketRank.change} place${marketRank.change > 1 ? 's' : ''} from last month`}
+          {rankDeclined && `Down ${Math.abs(marketRank.change)} place${Math.abs(marketRank.change) > 1 ? 's' : ''} from last month`}
+          {marketRank.change === 0 && 'Same position as last month'}
         </p>
       </div>
     </div>

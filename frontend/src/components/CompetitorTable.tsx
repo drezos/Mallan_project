@@ -134,10 +134,10 @@ export function CompetitorTable({ competitors, brandData }: CompetitorTableProps
         <div>
           <div className="flex items-center gap-2">
             <h3 className="font-display font-semibold text-slate-900">Competitor Snapshot</h3>
-            <InfoTooltip text="All tracked competitors ranked by search volume. Velocity = week-over-week change. Share = % of total market searches." position="left" />
+            <InfoTooltip text="All tracked competitors ranked by monthly search volume. Velocity = month-over-month change. Share = % of total market searches." position="left" />
           </div>
           <p className="text-xs text-slate-500 mt-0.5">
-            {isPriorityView ? 'Priority keyword volumes' : 'Last 7 days performance'}
+            {isPriorityView ? 'Priority keyword volumes' : 'Monthly performance'}
           </p>
         </div>
         

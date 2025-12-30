@@ -62,7 +62,7 @@ function updateAnomalyMessageWithVelocity(
   // Replace hardcoded percentages in the message with actual velocity
   // Patterns to match: "X.X%", "+X.X%", "-X.X%", "up X.X%"
   const updatedMessage = message
-    .replace(/\b(\d+\.?\d*)%\s*(weekly growth|WoW)/gi, `${formattedVelocity} $2`)
+    .replace(/\b(\d+\.?\d*)%\s*(monthly growth|MoM)/gi, `${formattedVelocity} $2`)
     .replace(/up\s+(\d+\.?\d*)%/gi, `up ${formattedVelocity}`)
     .replace(/showing\s+(\d+\.?\d*)%/gi, `showing ${formattedVelocity}`)
     .replace(/growing\s+(\d+\.?\d*)%/gi, `growing ${formattedVelocity}`);
@@ -151,7 +151,7 @@ export function Dashboard() {
         searchVolume: c.searchVolume,
         priorityKeyword: '',
         priorityVolume: 0,
-        growth: c.weeklyChange, // Map weeklyChange to growth for consistency
+        growth: c.monthlyChange, // Map monthlyChange to growth for consistency
         status: 'normal' as 'normal' | 'watching' | 'threat',
         marketShare: c.marketShare,
         priorityMarketShare: 0,
@@ -177,7 +177,7 @@ export function Dashboard() {
             ? (dashboardData.overview.yourBrand.priorityMarketShare || mockShareOfSearch.current)
             : (dashboardData.overview.yourBrand.marketShare || mockShareOfSearch.current),
           change: mockShareOfSearch.change, // Change not in dashboard response
-          weeklyHistory: mockShareOfSearch.weeklyHistory,
+          monthlyHistory: mockShareOfSearch.monthlyHistory,
         }
       : mockShareOfSearch,
 
@@ -406,7 +406,7 @@ export function Dashboard() {
           <ShareOfSearchCard
             current={transformedData.shareOfSearch.current}
             change={transformedData.shareOfSearch.change}
-            weeklyHistory={transformedData.shareOfSearch.weeklyHistory}
+            monthlyHistory={transformedData.shareOfSearch.monthlyHistory}
           />
           
           {/* Card B: Brand Search Volume with Market Rank */}
