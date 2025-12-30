@@ -134,10 +134,10 @@ export function CompetitorTable({ competitors, brandData }: CompetitorTableProps
         <div>
           <div className="flex items-center gap-2">
             <h3 className="font-display font-semibold text-slate-900">Competitor Snapshot</h3>
-            <InfoTooltip text="All tracked competitors ranked by monthly search volume. Velocity = month-over-month change. Share = % of total market searches." position="left" />
+            <InfoTooltip text="All tracked competitors showing their WEEKLY velocity (week-over-week change), market share, and search volume." position="left" />
           </div>
           <p className="text-xs text-slate-500 mt-0.5">
-            {isPriorityView ? 'Priority keyword volumes' : 'Monthly performance'}
+            {isPriorityView ? 'Priority keyword volumes' : 'Last 7 days performance'}
           </p>
         </div>
         
@@ -179,13 +179,13 @@ export function CompetitorTable({ competitors, brandData }: CompetitorTableProps
                 Brand
               </th>
               <th className="text-right text-xs font-medium text-slate-500 uppercase tracking-wider px-5 py-3">
-                {sortMode === 'volume' ? (isPriorityView ? 'Priority Vol.' : 'Search Vol.') : 'Velocity'}
+                {sortMode === 'volume' ? (isPriorityView ? 'Priority Vol.' : 'Search Vol.') : 'Velocity (WoW)'}
               </th>
               <th className="text-right text-xs font-medium text-slate-500 uppercase tracking-wider px-5 py-3">
                 Share
               </th>
               <th className="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-5 py-3 w-44">
-                {sortMode === 'volume' ? 'Velocity' : (isPriorityView ? 'Priority Vol.' : 'Search Vol.')}
+                {sortMode === 'volume' ? 'Velocity (WoW)' : (isPriorityView ? 'Priority Vol.' : 'Search Vol.')}
               </th>
             </tr>
           </thead>

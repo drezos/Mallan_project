@@ -35,9 +35,9 @@ export function AnomaliesPanel({ anomalies, onAlertClick }: AnomaliesPanelProps)
       <div className="flex items-start justify-between mb-3">
         <div>
           <h3 className="font-display font-semibold text-slate-900 text-sm">Market Alerts</h3>
-          <p className="text-xs text-slate-500">Statistical outliers</p>
+          <p className="text-xs text-slate-500">This week's signals</p>
         </div>
-        <InfoTooltip text="Automated alerts triggered when competitors show unusual growth patterns or statistical anomalies worth monitoring." />
+        <InfoTooltip text="Automated alerts triggered when competitors show unusual activity THIS WEEK compared to their historical patterns." />
       </div>
 
       {/* Scrollable feed */}
