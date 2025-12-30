@@ -34,7 +34,7 @@ export const mockBrandData = {
 export const mockShareOfSearch = {
   current: 8.2,
   change: 0.3,
-  weeklyHistory: [7.5, 7.8, 7.6, 7.9, 8.0, 7.8, 8.1, 8.0, 8.2, 8.1, 8.3, 8.2],
+  monthlyHistory: [7.5, 7.8, 7.6, 7.9, 8.0, 7.8, 8.1, 8.0, 8.2, 8.1, 8.3, 8.2],
 };
 
 // ===========================================
@@ -91,17 +91,17 @@ export const mockTAMTrendData = [
 // ===========================================
 
 export const mockCompetitors = [
-  { id: 1, name: 'Toto', searchVolume: 8500, weeklyChange: 5.2, marketShare: 18.5, velocityTrend: 'up', riskLevel: 'medium' },
-  { id: 2, name: 'Unibet', searchVolume: 7200, weeklyChange: -2.1, marketShare: 15.8, velocityTrend: 'down', riskLevel: 'low' },
-  { id: 3, name: 'Bet365', searchVolume: 6800, weeklyChange: 8.5, marketShare: 14.9, velocityTrend: 'up', riskLevel: 'high' },
-  { id: 4, name: 'BetCity', searchVolume: 5500, weeklyChange: 3.2, marketShare: 12.1, velocityTrend: 'up', riskLevel: 'medium' },
-  { id: 5, name: 'Holland Casino', searchVolume: 4800, weeklyChange: 1.5, marketShare: 10.5, velocityTrend: 'stable', riskLevel: 'low' },
-  { id: 6, name: 'Jacks.nl', searchVolume: 2400, weeklyChange: 8.2, marketShare: 8.2, velocityTrend: 'up', riskLevel: 'none' },
-  { id: 7, name: 'Circus', searchVolume: 2100, weeklyChange: -1.8, marketShare: 4.6, velocityTrend: 'down', riskLevel: 'low' },
-  { id: 8, name: '711', searchVolume: 1800, weeklyChange: 2.5, marketShare: 3.9, velocityTrend: 'up', riskLevel: 'low' },
-  { id: 9, name: 'Kansino', searchVolume: 1500, weeklyChange: 12.3, marketShare: 3.3, velocityTrend: 'up', riskLevel: 'high' },
-  { id: 10, name: 'BetMGM', searchVolume: 1200, weeklyChange: 15.8, marketShare: 2.6, velocityTrend: 'up', riskLevel: 'high' },
-  { id: 11, name: 'LeoVegas', searchVolume: 1100, weeklyChange: -0.5, marketShare: 2.4, velocityTrend: 'stable', riskLevel: 'low' },
+  { id: 1, name: 'Toto', searchVolume: 8500, monthlyChange: 5.2, marketShare: 18.5, velocityTrend: 'up', riskLevel: 'medium' },
+  { id: 2, name: 'Unibet', searchVolume: 7200, monthlyChange: -2.1, marketShare: 15.8, velocityTrend: 'down', riskLevel: 'low' },
+  { id: 3, name: 'Bet365', searchVolume: 6800, monthlyChange: 8.5, marketShare: 14.9, velocityTrend: 'up', riskLevel: 'high' },
+  { id: 4, name: 'BetCity', searchVolume: 5500, monthlyChange: 3.2, marketShare: 12.1, velocityTrend: 'up', riskLevel: 'medium' },
+  { id: 5, name: 'Holland Casino', searchVolume: 4800, monthlyChange: 1.5, marketShare: 10.5, velocityTrend: 'stable', riskLevel: 'low' },
+  { id: 6, name: 'Jacks.nl', searchVolume: 2400, monthlyChange: 8.2, marketShare: 8.2, velocityTrend: 'up', riskLevel: 'none' },
+  { id: 7, name: 'Circus', searchVolume: 2100, monthlyChange: -1.8, marketShare: 4.6, velocityTrend: 'down', riskLevel: 'low' },
+  { id: 8, name: '711', searchVolume: 1800, monthlyChange: 2.5, marketShare: 3.9, velocityTrend: 'up', riskLevel: 'low' },
+  { id: 9, name: 'Kansino', searchVolume: 1500, monthlyChange: 12.3, marketShare: 3.3, velocityTrend: 'up', riskLevel: 'high' },
+  { id: 10, name: 'BetMGM', searchVolume: 1200, monthlyChange: 15.8, marketShare: 2.6, velocityTrend: 'up', riskLevel: 'high' },
+  { id: 11, name: 'LeoVegas', searchVolume: 1100, monthlyChange: -0.5, marketShare: 2.4, velocityTrend: 'stable', riskLevel: 'low' },
 ];
 
 // Top rivals for competitive trend chart
@@ -136,7 +136,7 @@ export const mockAnomalies = [
     type: 'emerging_threat',
     impact: 'high' as const,
     title: 'Kansino Rapid Growth',
-    message: 'Kansino search volume up 12.3% WoW — significantly above market average',
+    message: 'Kansino search volume up 12.3% MoM — significantly above market average',
     metric: 'Search Volume',
     timestamp: new Date().toISOString(),
   },
@@ -145,7 +145,7 @@ export const mockAnomalies = [
     type: 'emerging_threat',
     impact: 'high' as const,
     title: 'BetMGM Aggressive Expansion',
-    message: 'BetMGM showing 15.8% weekly growth — new market entrant scaling fast',
+    message: 'BetMGM showing 15.8% monthly growth — new market entrant scaling fast',
     metric: 'Search Volume',
     timestamp: new Date().toISOString(),
   },
@@ -163,7 +163,7 @@ export const mockAnomalies = [
     type: 'competitive_pressure',
     impact: 'info' as const,
     title: 'Bet365 Acceleration',
-    message: 'Bet365 growing 8.5% WoW — above their historical average',
+    message: 'Bet365 growing 8.5% MoM — above their historical average',
     metric: 'Search Volume',
     timestamp: new Date().toISOString(),
   },
