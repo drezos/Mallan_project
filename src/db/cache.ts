@@ -77,22 +77,30 @@ export const cacheService = {
    */
   async get<T>(key: string): Promise<CacheEntry<T> | null> {
     try {
+      console.log(`   [cache.get] Querying database for key: ${key}`);
       const result = await pool.query(
-        `SELECT 
+        `SELECT
           cache_data,
           created_at,
           expires_at,
-          (expires_at < NOW()) as is_expired
-        FROM api_cache 
+          (expires_at < NOW()) as is_expired,
+          NOW() as current_time
+        FROM api_cache
         WHERE cache_key = $1`,
         [key]
       );
 
+      console.log(`   [cache.get] Query returned ${result.rows.length} rows`);
+
       if (result.rows.length === 0) {
+        console.log(`   [cache.get] No cache entry in database for key: ${key}`);
         return null;
       }
 
       const row = result.rows[0];
+      console.log(`   [cache.get] Database times: NOW()=${row.current_time}, expires_at=${row.expires_at}`);
+      console.log(`   [cache.get] is_expired=${row.is_expired}`);
+
       return {
         data: row.cache_data,
         cached_at: row.created_at,
@@ -100,7 +108,7 @@ export const cacheService = {
         is_expired: row.is_expired
       };
     } catch (error) {
-      console.error(`❌ Cache get error for ${key}:`, error);
+      console.error(`❌ [cache.get] Database error for ${key}:`, error);
       return null;
     }
   },
@@ -111,22 +119,33 @@ export const cacheService = {
   async set<T>(key: string, data: T, durationMs: number): Promise<boolean> {
     try {
       const expiresAt = new Date(Date.now() + durationMs);
-      
+      console.log(`   [cache.set] Saving to database: key=${key}, expires=${expiresAt.toISOString()}`);
+
+      const dataStr = JSON.stringify(data);
+      console.log(`   [cache.set] Data size: ${dataStr.length} characters`);
+
       await pool.query(
         `INSERT INTO api_cache (cache_key, cache_data, expires_at, last_refreshed_at)
          VALUES ($1, $2, $3, NOW())
-         ON CONFLICT (cache_key) 
-         DO UPDATE SET 
+         ON CONFLICT (cache_key)
+         DO UPDATE SET
            cache_data = $2,
            expires_at = $3,
            last_refreshed_at = NOW()`,
-        [key, JSON.stringify(data), expiresAt]
+        [key, dataStr, expiresAt]
       );
+
+      // Verify it was saved
+      const verify = await pool.query(
+        `SELECT cache_key, expires_at FROM api_cache WHERE cache_key = $1`,
+        [key]
+      );
+      console.log(`   [cache.set] Verification: ${verify.rows.length > 0 ? 'SAVED SUCCESSFULLY' : 'SAVE FAILED'}`);
 
       console.log(`✅ Cached ${key} until ${expiresAt.toISOString()}`);
       return true;
     } catch (error) {
-      console.error(`❌ Cache set error for ${key}:`, error);
+      console.error(`❌ [cache.set] Database error for ${key}:`, error);
       return false;
     }
   },

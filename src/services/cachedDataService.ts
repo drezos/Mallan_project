@@ -209,13 +209,29 @@ export const cachedDataService = {
    */
   async getDashboardData(forceRefresh = false): Promise<any> {
     const cacheKey = CACHE_KEYS.MARKET_DASHBOARD;
+    console.log(`\n========== DASHBOARD REQUEST ==========`);
+    console.log(`🔑 Cache key: "${cacheKey}"`);
+    console.log(`🔄 Force refresh: ${forceRefresh}`);
 
     // Check cache first (unless forcing refresh)
     if (!forceRefresh) {
+      console.log(`📡 Checking cache...`);
       const cached = await cacheService.get(cacheKey);
 
+      console.log(`📦 Cache result: ${cached ? 'FOUND' : 'NOT FOUND'}`);
+      if (cached) {
+        console.log(`   - is_expired: ${cached.is_expired}`);
+        console.log(`   - cached_at: ${cached.cached_at}`);
+        console.log(`   - expires_at: ${cached.expires_at}`);
+        console.log(`   - has competitorHighlights: ${!!(cached.data as any)?.competitorHighlights}`);
+        if ((cached.data as any)?.competitorHighlights) {
+          console.log(`   - fastestGrowing: ${JSON.stringify((cached.data as any).competitorHighlights.fastestGrowing)}`);
+        }
+      }
+
       if (cached && !cached.is_expired) {
-        console.log(`📦 Serving cached dashboard data (expires: ${cached.expires_at.toISOString()})`);
+        console.log(`✅ CACHE HIT - Returning cached data (NOT recalculating)`);
+        console.log(`========================================\n`);
         const data = cached.data as Record<string, unknown>;
         return {
           ...data,
@@ -230,27 +246,35 @@ export const cachedDataService = {
 
       // Log cache status for debugging
       if (cached?.is_expired) {
-        console.log('📦 Cache expired, fetching fresh data...');
+        console.log('❌ CACHE MISS - Cache expired, will rebuild');
       } else if (!cached) {
-        console.log('📦 No cache entry found, building fresh data...');
+        console.log('❌ CACHE MISS - No cache entry found, will rebuild');
       }
     } else {
-      console.log('🔄 Force refresh requested');
+      console.log('🔄 Force refresh requested - skipping cache check');
     }
 
     // Fetch fresh data from DataForSEO
     try {
-      console.log('🌐 Fetching fresh data from DataForSEO...');
+      console.log('🔨 REBUILDING DATA (this uses Math.random() - data WILL be different!)');
       const freshData = await this.buildDashboardData();
 
       if (freshData) {
+        console.log(`🆕 Built new data with competitorHighlights:`);
+        console.log(`   - fastestGrowing: ${JSON.stringify(freshData.competitorHighlights?.fastestGrowing)}`);
+        console.log(`   - biggestDecline: ${JSON.stringify(freshData.competitorHighlights?.biggestDecline)}`);
+
         // Cache for 1 week
+        console.log(`💾 Saving to cache...`);
         const cacheSuccess = await cacheService.set(cacheKey, freshData, CACHE_DURATIONS.WEEKLY);
 
         if (!cacheSuccess) {
-          console.warn('⚠️ WARNING: Cache set failed! Data will be recalculated on next request.');
-          console.warn('⚠️ Check database connection and ensure cache table exists.');
+          console.error('❌ CACHE WRITE FAILED! Data will be recalculated on next request.');
+          console.error('❌ Check database connection and ensure cache table exists.');
+        } else {
+          console.log(`✅ Cache saved successfully`);
         }
+        console.log(`========================================\n`);
 
         const now = new Date();
         return {
