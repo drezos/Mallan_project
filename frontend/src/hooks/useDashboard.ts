@@ -10,9 +10,11 @@ import { api } from '../lib/api';
 export function useDashboard(tenant?: string) {
   return useQuery({
     // Include tenant in query key so different tenants have separate cache entries
-    queryKey: ['dashboard', tenant],
+    queryKey: ['dashboard', tenant ?? 'default'],
     queryFn: () => api.getDashboard(tenant),
     staleTime: 5 * 60 * 1000, // 5 minutes
     retry: 2,
+    // Explicitly enable query to ensure it always runs regardless of tenant value
+    enabled: true,
   });
 }
