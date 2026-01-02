@@ -1,4 +1,5 @@
 import { useCallback, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { RefreshCw, Loader2, WifiOff } from 'lucide-react';
 import { ShareOfSearchCard, BrandVolumeCard } from '../components/Zone1Cards'
 import { MarketOpportunityCard, TAMTrendChart } from '../components/Zone2Components'
@@ -106,7 +107,11 @@ function generateScaledTrendData(
 }
 
 export function Dashboard() {
-  const dashboardQuery = useDashboard();
+  // Read tenant from URL query params (e.g., /dashboard?tenant=quicklets)
+  const [searchParams] = useSearchParams();
+  const tenant = searchParams.get('tenant') || undefined;
+
+  const dashboardQuery = useDashboard(tenant);
   const { volumeView } = useVolumeView();
 
   const isLoading = dashboardQuery.isLoading;

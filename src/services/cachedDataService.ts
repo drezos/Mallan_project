@@ -29,8 +29,8 @@ interface TenantConfig {
   }>;
 }
 
-// Hardcoded tenant name for now (will be dynamic via auth later)
-const CURRENT_TENANT_NAME = 'Jacks.nl';
+// Default tenant name (used when no tenant parameter is provided)
+const DEFAULT_TENANT_NAME = 'Jacks.nl';
 
 // =============================================================================
 // TENANT-SPECIFIC CACHE SERVICE
@@ -272,18 +272,67 @@ async function getTenantConfig(tenantId: string): Promise<TenantConfig | null> {
 }
 
 /**
- * Get tenant ID by name
+ * Get tenant ID by name (case-insensitive)
  */
 async function getTenantIdByName(tenantName: string): Promise<string | null> {
   try {
     const result = await pool.query(
-      `SELECT id FROM tenants WHERE name = $1`,
+      `SELECT id FROM tenants WHERE LOWER(name) = LOWER($1)`,
       [tenantName]
     );
     return result.rows.length > 0 ? result.rows[0].id : null;
   } catch (error) {
     console.error('❌ Error fetching tenant ID:', error);
     return null;
+  }
+}
+
+/**
+ * Get tenant ID by name or ID
+ * Tries exact ID match first, then name match (case-insensitive)
+ */
+async function getTenantByNameOrId(tenantIdentifier: string): Promise<{ id: string; name: string } | null> {
+  try {
+    // Try UUID match first (if it looks like a UUID)
+    const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (uuidPattern.test(tenantIdentifier)) {
+      const result = await pool.query(
+        `SELECT id, name FROM tenants WHERE id = $1`,
+        [tenantIdentifier]
+      );
+      if (result.rows.length > 0) {
+        return { id: result.rows[0].id, name: result.rows[0].name };
+      }
+    }
+
+    // Try name match (case-insensitive)
+    const result = await pool.query(
+      `SELECT id, name FROM tenants WHERE LOWER(name) = LOWER($1)`,
+      [tenantIdentifier]
+    );
+    if (result.rows.length > 0) {
+      return { id: result.rows[0].id, name: result.rows[0].name };
+    }
+
+    return null;
+  } catch (error) {
+    console.error('❌ Error fetching tenant:', error);
+    return null;
+  }
+}
+
+/**
+ * Get all available tenants
+ */
+async function getAllTenants(): Promise<Array<{ id: string; name: string }>> {
+  try {
+    const result = await pool.query(
+      `SELECT id, name FROM tenants ORDER BY name`
+    );
+    return result.rows;
+  } catch (error) {
+    console.error('❌ Error fetching all tenants:', error);
+    return [];
   }
 }
 
@@ -647,17 +696,39 @@ export const cachedDataService = {
   },
 
   /**
-   * Get full dashboard data for current tenant
+   * Get full dashboard data for a tenant
    * Refreshes weekly (every 7 days)
    * Uses tenant_cache table for per-tenant caching
+   *
+   * @param tenantParam - Optional tenant name or ID. If not provided, uses default tenant.
+   * @param forceRefresh - Force a cache refresh
    */
-  async getDashboardData(forceRefresh = false): Promise<any> {
+  async getDashboardData(tenantParam?: string, forceRefresh = false): Promise<any> {
     const cacheKey = CACHE_KEYS.MARKET_DASHBOARD;
 
-    // Get current tenant ID (hardcoded to Jacks.nl for now)
-    const tenantId = await getTenantIdByName(CURRENT_TENANT_NAME);
-    if (!tenantId) {
-      throw new Error(`Tenant not found: ${CURRENT_TENANT_NAME}`);
+    // Resolve tenant: use provided param or fall back to default
+    let tenantId: string;
+    let tenantName: string;
+
+    if (tenantParam) {
+      const tenant = await getTenantByNameOrId(tenantParam);
+      if (!tenant) {
+        // Return available tenants for better error message
+        const availableTenants = await getAllTenants();
+        throw new Error(
+          `Tenant not found: "${tenantParam}". Available tenants: ${availableTenants.map(t => t.name).join(', ')}`
+        );
+      }
+      tenantId = tenant.id;
+      tenantName = tenant.name;
+    } else {
+      // Default to first tenant (Jacks.nl)
+      const defaultTenantId = await getTenantIdByName(DEFAULT_TENANT_NAME);
+      if (!defaultTenantId) {
+        throw new Error(`Default tenant not found: ${DEFAULT_TENANT_NAME}`);
+      }
+      tenantId = defaultTenantId;
+      tenantName = DEFAULT_TENANT_NAME;
     }
 
     // Check tenant cache first (unless forcing refresh)
@@ -665,7 +736,7 @@ export const cachedDataService = {
       const cached = await tenantCacheService.get(tenantId, cacheKey);
 
       if (cached && !cached.is_expired) {
-        console.log(`📦 Serving cached dashboard data for tenant ${CURRENT_TENANT_NAME} (expires: ${cached.expires_at.toISOString()})`);
+        console.log(`📦 Serving cached dashboard data for tenant ${tenantName} (expires: ${cached.expires_at.toISOString()})`);
         const data = cached.data as Record<string, unknown>;
         return {
           ...data,
@@ -673,6 +744,7 @@ export const cachedDataService = {
           _meta: {
             source: 'cache',
             tenant_id: tenantId,
+            tenant_name: tenantName,
             cached_at: cached.cached_at,
             expires_at: cached.expires_at
           }
@@ -716,6 +788,7 @@ export const cachedDataService = {
           _meta: {
             source: 'fresh',
             tenant_id: tenantId,
+            tenant_name: tenantName,
             cached_at: now,
             expires_at: new Date(Date.now() + CACHE_DURATIONS.WEEKLY),
             cache_write_success: cacheSuccess
@@ -734,6 +807,7 @@ export const cachedDataService = {
           _meta: {
             source: 'stale_cache',
             tenant_id: tenantId,
+            tenant_name: tenantName,
             cached_at: staleCache.cached_at,
             expires_at: staleCache.expires_at,
             warning: 'Using stale data due to API error'
@@ -756,6 +830,7 @@ export const cachedDataService = {
           _meta: {
             source: 'stale_cache',
             tenant_id: tenantId,
+            tenant_name: tenantName,
             cached_at: staleCache.cached_at,
             error: 'API error occurred'
           }

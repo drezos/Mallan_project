@@ -150,9 +150,17 @@ export interface DashboardResponse {
 }
 
 export const api = {
-  async getDashboard(): Promise<DashboardResponse | null> {
+  /**
+   * Fetch dashboard data for a tenant
+   * @param tenant - Optional tenant name or ID. Defaults to Jacks.nl if not provided.
+   */
+  async getDashboard(tenant?: string): Promise<DashboardResponse | null> {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/market/dashboard`);
+      const url = new URL(`${API_BASE_URL}/api/market/dashboard`);
+      if (tenant) {
+        url.searchParams.set('tenant', tenant);
+      }
+      const response = await fetch(url.toString());
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       return await response.json();
     } catch (error) {
