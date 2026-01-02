@@ -153,7 +153,10 @@ export function Onboarding() {
     ))
   }
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (e?: React.MouseEvent<HTMLButtonElement> | React.FormEvent) => {
+    if (e) {
+      e.preventDefault()
+    }
     setIsSubmitting(true)
     setError(null)
 
