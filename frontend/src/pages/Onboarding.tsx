@@ -18,10 +18,10 @@ interface MarketKeyword {
 }
 
 const REGIONS = [
-  { code: 'nl', name: 'Netherlands' },
-  { code: 'mt', name: 'Malta' },
-  { code: 'uk', name: 'UK' },
-  { code: 'de', name: 'Germany' },
+  { code: 2528, name: 'Netherlands' },
+  { code: 2470, name: 'Malta' },
+  { code: 2826, name: 'United Kingdom' },
+  { code: 2276, name: 'Germany' },
 ]
 
 const CATEGORIES = [
@@ -45,7 +45,7 @@ interface FormData {
   // Step 1: Brand info
   brandName: string
   brandUrl: string
-  regionCode: string
+  regionCode: number | null
   regionName: string
   // Step 2: Brand keywords
   brandKeywords: string
@@ -58,7 +58,7 @@ interface FormData {
 const initialFormData: FormData = {
   brandName: '',
   brandUrl: '',
-  regionCode: '',
+  regionCode: null,
   regionName: '',
   brandKeywords: '',
   competitors: [{ id: 1, name: '', url: '', keywords: '' }],
@@ -80,8 +80,9 @@ export function Onboarding() {
     setFormData(prev => ({ ...prev, [field]: value }))
   }
 
-  // Handle region selection - stores both code and name
-  const handleRegionChange = (code: string) => {
+  // Handle region selection - stores both code (as number) and name
+  const handleRegionChange = (value: string) => {
+    const code = value ? parseInt(value, 10) : null
     const selectedRegion = REGIONS.find(r => r.code === code)
     setFormData(prev => ({
       ...prev,
@@ -319,7 +320,7 @@ export function Onboarding() {
                     Region
                   </label>
                   <select
-                    value={formData.regionCode}
+                    value={formData.regionCode ?? ''}
                     onChange={(e) => handleRegionChange(e.target.value)}
                     className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-forest-500 focus:border-transparent text-slate-900 bg-white"
                   >
