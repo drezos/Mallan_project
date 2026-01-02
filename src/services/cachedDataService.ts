@@ -228,9 +228,11 @@ export const cachedDataService = {
         };
       }
 
-      // If cached but expired, log it
+      // Log cache status for debugging
       if (cached?.is_expired) {
         console.log('📦 Cache expired, fetching fresh data...');
+      } else if (!cached) {
+        console.log('📦 No cache entry found, building fresh data...');
       }
     } else {
       console.log('🔄 Force refresh requested');
@@ -243,7 +245,12 @@ export const cachedDataService = {
 
       if (freshData) {
         // Cache for 1 week
-        await cacheService.set(cacheKey, freshData, CACHE_DURATIONS.WEEKLY);
+        const cacheSuccess = await cacheService.set(cacheKey, freshData, CACHE_DURATIONS.WEEKLY);
+
+        if (!cacheSuccess) {
+          console.warn('⚠️ WARNING: Cache set failed! Data will be recalculated on next request.');
+          console.warn('⚠️ Check database connection and ensure cache table exists.');
+        }
 
         const now = new Date();
         return {
@@ -252,7 +259,8 @@ export const cachedDataService = {
           _meta: {
             source: 'fresh',
             cached_at: now,
-            expires_at: new Date(Date.now() + CACHE_DURATIONS.WEEKLY)
+            expires_at: new Date(Date.now() + CACHE_DURATIONS.WEEKLY),
+            cache_write_success: cacheSuccess
           }
         };
       }

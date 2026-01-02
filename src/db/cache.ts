@@ -48,14 +48,27 @@ export const cacheService = {
           last_refreshed_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
         )
       `);
-      
+
       await pool.query(`
         CREATE INDEX IF NOT EXISTS idx_cache_key ON api_cache(cache_key)
       `);
-      
-      console.log('✅ Cache table initialized');
+
+      // Verify the table was created successfully
+      const verifyResult = await pool.query(
+        `SELECT EXISTS (
+          SELECT FROM information_schema.tables
+          WHERE table_name = 'api_cache'
+        )`
+      );
+
+      if (verifyResult.rows[0]?.exists) {
+        console.log('✅ Cache table initialized and verified');
+      } else {
+        console.error('⚠️ Cache table creation may have failed - table not found');
+      }
     } catch (error) {
       console.error('❌ Failed to initialize cache table:', error);
+      console.error('⚠️ Caching will NOT work - all requests will fetch fresh data');
     }
   },
 
