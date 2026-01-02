@@ -7,9 +7,13 @@ dotenv.config();
 
 // Import routes
 import marketRouter from './routes/market';
+import userCompetitorsRouter from './routes/user-competitors';
 
 // Import cache service for initialization
 import { cacheService } from './db/cache';
+
+// Import migrations
+import { runMigrations } from './db/migrations';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -26,6 +30,7 @@ app.use((req, res, next) => {
 
 // Routes
 app.use('/api/market', marketRouter);
+app.use('/api/user/competitors', userCompetitorsRouter);
 
 // Root endpoint
 app.get('/', (req, res) => {
@@ -45,7 +50,8 @@ app.get('/', (req, res) => {
       metrics: '/api/market/metrics',
       dashboard: '/api/market/dashboard',
       cacheStatus: '/api/market/cache-status',
-      forceRefresh: '/api/market/refresh'
+      forceRefresh: '/api/market/refresh',
+      userCompetitors: '/api/user/competitors'
     }
   });
 });
@@ -55,6 +61,9 @@ async function start() {
   try {
     // Initialize cache table
     await cacheService.init();
+
+    // Run database migrations
+    await runMigrations();
 
     // Check DataForSEO config
     const dataForSeoConfigured = !!(
