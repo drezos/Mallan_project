@@ -1,12 +1,11 @@
-
 /**
  * DataForSEO Service
- * 
+ *
  * Integrates with DataForSEO APIs for:
  * 1. Google Ads Search Volume (monthly absolute volumes)
  * 2. Google Trends Explore (weekly relative trends)
  * 3. SERP Organic (ranking positions)
- * 
+ *
  * IMPORTANT: include_adult_keywords must be TRUE for gambling keywords!
  */
 
@@ -104,7 +103,7 @@ class DataForSEOService {
   /**
    * Fetch search volumes for a list of keywords
    * Cost: ~$0.075 per request (up to 1000 keywords)
-   * 
+   *
    * IMPORTANT: include_adult_keywords: true is REQUIRED for gambling keywords!
    */
   async getSearchVolume(keywords: string[]): Promise<SearchVolumeResult[]> {
@@ -141,13 +140,11 @@ class DataForSEOService {
 
   /**
    * Fetch search volumes for all brand keywords and aggregate by brand
-   * @param dynamicBrands Optional list of brands to use instead of hardcoded config
    */
-  async getBrandSearchVolumes(dynamicBrands?: BrandConfig[]): Promise<BrandSearchVolume[]> {
-    const brandsToUse = dynamicBrands || brands;
-    const allKeywords = brandsToUse.flatMap(brand => brand.keywords);
+  async getBrandSearchVolumes(): Promise<BrandSearchVolume[]> {
+    const allKeywords = brands.flatMap(brand => brand.keywords);
 
-    console.log(`📊 Fetching search volumes for ${allKeywords.length} keywords across ${brandsToUse.length} brands...`);
+    console.log(`📊 Fetching search volumes for ${allKeywords.length} keywords...`);
 
     const results = await this.getSearchVolume(allKeywords);
 
@@ -156,7 +153,7 @@ class DataForSEOService {
     results.forEach(r => volumeMap.set(r.keyword.toLowerCase(), r));
 
     // Aggregate by brand
-    const brandVolumes: BrandSearchVolume[] = brandsToUse.map(brand => {
+    const brandVolumes: BrandSearchVolume[] = brands.map(brand => {
       const brandKeywordResults = brand.keywords.map(kw => {
         const result = volumeMap.get(kw.toLowerCase());
         return result || {
@@ -204,7 +201,7 @@ class DataForSEOService {
   /**
    * Fetch Google Trends data for keyword comparison
    * Cost: ~$0.009 per request (up to 5 keywords to compare)
-   * 
+   *
    * Note: Returns relative interest (0-100), not absolute volumes
    */
   async getTrends(
@@ -255,7 +252,7 @@ class DataForSEOService {
    */
   async getBrandTrends(brandIds?: string[]): Promise<TrendResult | null> {
     // Get brands to compare (max 5 for Google Trends)
-    let brandsToCompare = brandIds 
+    let brandsToCompare = brandIds
       ? brands.filter(b => brandIds.includes(b.id))
       : brands.slice(0, 5);
 
@@ -320,10 +317,10 @@ class DataForSEOService {
    */
   async getIntentKeywordRankings(): Promise<Map<string, SerpResult>> {
     const results = new Map<string, SerpResult>();
-    
+
     // Get all intent keywords
     const allIntentKeywords = intentKeywords.flatMap(cat => cat.keywords);
-    
+
     console.log(`🔍 Fetching SERP results for ${allIntentKeywords.length} intent keywords...`);
 
     // Fetch in batches to avoid rate limits
@@ -359,7 +356,7 @@ class DataForSEOService {
       // Check if any brand domain appears in results
       const match = serpResult.items.find(item => {
         const domain = item.domain.toLowerCase();
-        return brand.website.toLowerCase().includes(domain) || 
+        return brand.website.toLowerCase().includes(domain) ||
                domain.includes(brand.website.toLowerCase().replace('.nl', '').replace('.com', ''));
       });
 
@@ -386,7 +383,7 @@ class DataForSEOService {
   }> {
     try {
       const response = await this.client.get('/appendix/user_data');
-      
+
       if (response.data.tasks?.[0]?.result?.[0]) {
         return {
           isConfigured: true,
@@ -396,9 +393,9 @@ class DataForSEOService {
 
       return { isConfigured: false, error: 'Could not fetch user data' };
     } catch (error: any) {
-      return { 
-        isConfigured: false, 
-        error: error.message || 'Failed to connect to DataForSEO' 
+      return {
+        isConfigured: false,
+        error: error.message || 'Failed to connect to DataForSEO'
       };
     }
   }

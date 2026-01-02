@@ -1,9 +1,9 @@
 /**
  * Brand Keyword Configuration - Dutch iGaming Market
- * 
+ *
  * This file defines all brands and their associated keywords
  * for the MarketPulse competitive intelligence dashboard.
- * 
+ *
  * Pattern per brand:
  * - URL (domain)
  * - brand + casino
@@ -348,69 +348,6 @@ export const intentKeywords: IntentKeywordConfig[] = [
 // HELPER FUNCTIONS
 // =============================================================================
 
-/**
- * Extract domain from URL string
- */
-function extractDomain(url: string): string | null {
-  // Simple regex to extract domain from URL
-  const match = url.match(/^https?:\/\/(?:www\.)?([^\/]+)/i);
-  return match ? match[1] : null;
-}
-
-/**
- * Generate keywords for a competitor based on their name
- * Follows the pattern: URL, brand + casino, brand + sport, brand + nl, brand + inloggen
- */
-export function generateKeywordsForCompetitor(name: string, url?: string | null): string[] {
-  const nameLower = name.toLowerCase().replace(/\s+/g, '');
-  const nameWithSpaces = name.toLowerCase();
-
-  const keywords: string[] = [];
-
-  // Add domain if URL provided
-  if (url) {
-    const domain = extractDomain(url);
-    if (domain) {
-      keywords.push(domain);
-    }
-  }
-
-  // Add keyword variations
-  keywords.push(`${nameWithSpaces} casino`);
-  keywords.push(`${nameWithSpaces} sport`);
-  keywords.push(`${nameLower} nl`);
-  keywords.push(`${nameWithSpaces} inloggen`);
-  keywords.push(`${nameLower} online`);
-
-  return keywords;
-}
-
-/**
- * Generate a BrandConfig from a competitor record
- */
-export function competitorToBrandConfig(
-  competitor: { id: number; name: string; url?: string | null },
-  index: number
-): BrandConfig {
-  // Color palette for dynamic competitors
-  const colors = [
-    '#FF6B00', '#C4A000', '#027B5B', '#14805E', '#FF4444',
-    '#6B5B95', '#E63946', '#FF6600', '#B8860B', '#2E8B57'
-  ];
-
-  const id = competitor.name.toLowerCase().replace(/\s+/g, '-');
-  const domain = competitor.url ? extractDomain(competitor.url) : null;
-
-  return {
-    id,
-    displayName: competitor.name,
-    website: domain || `${id}.nl`,
-    keywords: generateKeywordsForCompetitor(competitor.name, competitor.url),
-    isOwnBrand: false,
-    color: colors[index % colors.length]
-  };
-}
-
 export function getBrandKeywords(brandId: string): string[] {
   const brand = brands.find(b => b.id === brandId);
   return brand?.keywords || [];
@@ -460,13 +397,13 @@ export const apiConfig = {
     language_code: "nl",        // Dutch
     include_adult_keywords: true // Required for gambling keywords!
   },
-  
+
   schedules: {
     searchVolume: "monthly",    // Google Ads Search Volume - 1st of month
     trends: "weekly",           // Google Trends - Every Monday
     serp: "weekly"              // SERP rankings - Every Monday
   },
-  
+
   costs: {
     searchVolume: 0.075,        // Per request (up to 1000 keywords)
     trends: 0.009,              // Per request (up to 5 keywords)
