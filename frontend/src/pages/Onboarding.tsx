@@ -40,6 +40,31 @@ const STEPS = [
   { number: 4, title: 'Market Keywords' },
 ]
 
+// Combined form state interface
+interface FormData {
+  // Step 1: Brand info
+  brandName: string
+  brandUrl: string
+  regionCode: string
+  regionName: string
+  // Step 2: Brand keywords
+  brandKeywords: string
+  // Step 3: Competitors
+  competitors: Competitor[]
+  // Step 4: Market keywords
+  marketKeywords: MarketKeyword[]
+}
+
+const initialFormData: FormData = {
+  brandName: '',
+  brandUrl: '',
+  regionCode: '',
+  regionName: '',
+  brandKeywords: '',
+  competitors: [{ id: 1, name: '', url: '', keywords: '' }],
+  marketKeywords: [{ id: 1, keyword: '', category: '' }],
+}
+
 export function Onboarding() {
   const navigate = useNavigate()
   const [currentStep, setCurrentStep] = useState(1)
@@ -47,32 +72,32 @@ export function Onboarding() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
 
-  // Step 1: Brand info
-  const [brandName, setBrandName] = useState('')
-  const [websiteUrl, setWebsiteUrl] = useState('')
-  const [region, setRegion] = useState('')
+  // Single state object for all form data - persists across all steps
+  const [formData, setFormData] = useState<FormData>(initialFormData)
 
-  // Step 2: Brand keywords
-  const [brandKeywords, setBrandKeywords] = useState('')
+  // Helper to update form data
+  const updateFormData = <K extends keyof FormData>(field: K, value: FormData[K]) => {
+    setFormData(prev => ({ ...prev, [field]: value }))
+  }
 
-  // Step 3: Competitors
-  const [competitors, setCompetitors] = useState<Competitor[]>([
-    { id: 1, name: '', url: '', keywords: '' }
-  ])
-
-  // Step 4: Market keywords
-  const [marketKeywords, setMarketKeywords] = useState<MarketKeyword[]>([
-    { id: 1, keyword: '', category: '' }
-  ])
+  // Handle region selection - stores both code and name
+  const handleRegionChange = (code: string) => {
+    const selectedRegion = REGIONS.find(r => r.code === code)
+    setFormData(prev => ({
+      ...prev,
+      regionCode: code,
+      regionName: selectedRegion?.name || ''
+    }))
+  }
 
   const canProceed = () => {
     switch (currentStep) {
       case 1:
-        return brandName.trim() && websiteUrl.trim() && region
+        return formData.brandName.trim() && formData.brandUrl.trim() && formData.regionCode
       case 2:
-        return brandKeywords.trim().split('\n').filter(k => k.trim()).length >= 1
+        return formData.brandKeywords.trim().split('\n').filter(k => k.trim()).length >= 1
       case 3:
-        return competitors.some(c => c.name.trim())
+        return formData.competitors.some(c => c.name.trim())
       case 4:
         return true // Market keywords are optional
       default:
@@ -95,35 +120,35 @@ export function Onboarding() {
   }
 
   const addCompetitor = () => {
-    if (competitors.length < 10) {
-      setCompetitors([...competitors, { id: Date.now(), name: '', url: '', keywords: '' }])
+    if (formData.competitors.length < 10) {
+      updateFormData('competitors', [...formData.competitors, { id: Date.now(), name: '', url: '', keywords: '' }])
     }
   }
 
   const removeCompetitor = (id: number) => {
-    if (competitors.length > 1) {
-      setCompetitors(competitors.filter(c => c.id !== id))
+    if (formData.competitors.length > 1) {
+      updateFormData('competitors', formData.competitors.filter(c => c.id !== id))
     }
   }
 
   const updateCompetitor = (id: number, field: keyof Competitor, value: string) => {
-    setCompetitors(competitors.map(c =>
+    updateFormData('competitors', formData.competitors.map(c =>
       c.id === id ? { ...c, [field]: value } : c
     ))
   }
 
   const addMarketKeyword = () => {
-    setMarketKeywords([...marketKeywords, { id: Date.now(), keyword: '', category: '' }])
+    updateFormData('marketKeywords', [...formData.marketKeywords, { id: Date.now(), keyword: '', category: '' }])
   }
 
   const removeMarketKeyword = (id: number) => {
-    if (marketKeywords.length > 1) {
-      setMarketKeywords(marketKeywords.filter(k => k.id !== id))
+    if (formData.marketKeywords.length > 1) {
+      updateFormData('marketKeywords', formData.marketKeywords.filter(k => k.id !== id))
     }
   }
 
   const updateMarketKeyword = (id: number, field: keyof MarketKeyword, value: string) => {
-    setMarketKeywords(marketKeywords.map(k =>
+    updateFormData('marketKeywords', formData.marketKeywords.map(k =>
       k.id === id ? { ...k, [field]: value } : k
     ))
   }
@@ -132,17 +157,17 @@ export function Onboarding() {
     setIsSubmitting(true)
     setError(null)
 
+    // Build payload from combined formData state - matches API expectations
     const payload = {
-      brand: {
-        name: brandName.trim(),
-        websiteUrl: websiteUrl.trim(),
-        region,
-      },
-      brandKeywords: brandKeywords
+      brandName: formData.brandName.trim(),
+      brandUrl: formData.brandUrl.trim(),
+      regionCode: formData.regionCode,
+      regionName: formData.regionName,
+      brandKeywords: formData.brandKeywords
         .split('\n')
         .map(k => k.trim())
         .filter(k => k),
-      competitors: competitors
+      competitors: formData.competitors
         .filter(c => c.name.trim())
         .map(c => ({
           name: c.name.trim(),
@@ -152,7 +177,7 @@ export function Onboarding() {
             .map(k => k.trim())
             .filter(k => k),
         })),
-      marketKeywords: marketKeywords
+      marketKeywords: formData.marketKeywords
         .filter(k => k.keyword.trim())
         .map(k => ({
           keyword: k.keyword.trim(),
@@ -266,9 +291,9 @@ export function Onboarding() {
                   </label>
                   <input
                     type="text"
-                    value={brandName}
-                    onChange={(e) => setBrandName(e.target.value)}
-                    placeholder="e.g., Jacks Casino"
+                    value={formData.brandName}
+                    onChange={(e) => updateFormData('brandName', e.target.value)}
+                    placeholder="Your brand name"
                     className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-forest-500 focus:border-transparent text-slate-900 placeholder-slate-400"
                   />
                 </div>
@@ -279,9 +304,9 @@ export function Onboarding() {
                   </label>
                   <input
                     type="url"
-                    value={websiteUrl}
-                    onChange={(e) => setWebsiteUrl(e.target.value)}
-                    placeholder="https://www.example.com"
+                    value={formData.brandUrl}
+                    onChange={(e) => updateFormData('brandUrl', e.target.value)}
+                    placeholder="https://yourbrand.com"
                     className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-forest-500 focus:border-transparent text-slate-900 placeholder-slate-400"
                   />
                 </div>
@@ -291,8 +316,8 @@ export function Onboarding() {
                     Region
                   </label>
                   <select
-                    value={region}
-                    onChange={(e) => setRegion(e.target.value)}
+                    value={formData.regionCode}
+                    onChange={(e) => handleRegionChange(e.target.value)}
                     className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-forest-500 focus:border-transparent text-slate-900 bg-white"
                   >
                     <option value="">Select a region</option>
@@ -320,14 +345,14 @@ export function Onboarding() {
                   Keywords (one per line)
                 </label>
                 <textarea
-                  value={brandKeywords}
-                  onChange={(e) => setBrandKeywords(e.target.value)}
-                  placeholder={`jacks casino\njacks.nl\njacks online`}
+                  value={formData.brandKeywords}
+                  onChange={(e) => updateFormData('brandKeywords', e.target.value)}
+                  placeholder={`your brand name\nyourbrand.com\nyour brand online`}
                   rows={8}
                   className="w-full px-4 py-3 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-forest-500 focus:border-transparent text-slate-900 placeholder-slate-400 resize-none font-mono text-sm"
                 />
                 <p className="text-xs text-slate-400 mt-2">
-                  {brandKeywords.split('\n').filter(k => k.trim()).length} keywords entered
+                  {formData.brandKeywords.split('\n').filter(k => k.trim()).length} keywords entered
                 </p>
               </div>
             </div>
@@ -342,7 +367,7 @@ export function Onboarding() {
               </div>
 
               <div className="space-y-4">
-                {competitors.map((competitor, index) => (
+                {formData.competitors.map((competitor, index) => (
                   <div
                     key={competitor.id}
                     className="p-4 bg-slate-50 rounded-lg border border-slate-200"
@@ -351,7 +376,7 @@ export function Onboarding() {
                       <span className="text-sm font-medium text-slate-700">
                         Competitor {index + 1}
                       </span>
-                      {competitors.length > 1 && (
+                      {formData.competitors.length > 1 && (
                         <button
                           type="button"
                           onClick={() => removeCompetitor(competitor.id)}
@@ -388,14 +413,14 @@ export function Onboarding() {
                   </div>
                 ))}
 
-                {competitors.length < 10 && (
+                {formData.competitors.length < 10 && (
                   <button
                     type="button"
                     onClick={addCompetitor}
                     className="w-full py-2.5 border-2 border-dashed border-slate-300 rounded-lg text-slate-500 hover:border-forest-500 hover:text-forest-600 transition-colors flex items-center justify-center gap-2"
                   >
                     <Plus className="w-4 h-4" />
-                    Add Competitor ({competitors.length}/10)
+                    Add Competitor ({formData.competitors.length}/10)
                   </button>
                 )}
               </div>
@@ -411,7 +436,7 @@ export function Onboarding() {
               </div>
 
               <div className="space-y-3">
-                {marketKeywords.map((mk) => (
+                {formData.marketKeywords.map((mk) => (
                   <div key={mk.id} className="flex gap-2">
                     <input
                       type="text"
@@ -431,7 +456,7 @@ export function Onboarding() {
                         </option>
                       ))}
                     </select>
-                    {marketKeywords.length > 1 && (
+                    {formData.marketKeywords.length > 1 && (
                       <button
                         type="button"
                         onClick={() => removeMarketKeyword(mk.id)}
