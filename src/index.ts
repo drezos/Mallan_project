@@ -8,6 +8,7 @@ dotenv.config();
 // Import routes
 import marketRouter from './routes/market';
 import userCompetitorsRouter from './routes/user-competitors';
+import tenantsRouter from './routes/tenants';
 
 // Import cache service for initialization
 import { cacheService } from './db/cache';
@@ -31,6 +32,7 @@ app.use((req, res, next) => {
 // Routes
 app.use('/api/market', marketRouter);
 app.use('/api/user/competitors', userCompetitorsRouter);
+app.use('/api/tenants', tenantsRouter);
 
 // Root endpoint
 app.get('/', (req, res) => {
@@ -51,7 +53,9 @@ app.get('/', (req, res) => {
       dashboard: '/api/market/dashboard',
       cacheStatus: '/api/market/cache-status',
       forceRefresh: '/api/market/refresh',
-      userCompetitors: '/api/user/competitors'
+      userCompetitors: '/api/user/competitors',
+      tenantsCreate: '/api/tenants/create',
+      tenantsGet: '/api/tenants/:id'
     }
   });
 });
