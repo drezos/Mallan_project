@@ -31,7 +31,7 @@ export function Layout() {
             <img
               src="/weeklybrew-logo.png"
               alt="WeeklyBrew"
-              className="w-10 h-10 object-contain"
+              className="w-12 h-12 object-contain"
             />
             <h1 className="font-display font-semibold text-slate-900 text-lg leading-none">
               weeklybrew.io
