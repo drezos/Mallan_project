@@ -3,8 +3,6 @@ import {
   LayoutDashboard,
   Users,
   Bell,
-  Settings,
-  TrendingUp,
   ChevronRight
 } from 'lucide-react'
 import { UserButton } from '@clerk/clerk-react'
@@ -13,8 +11,6 @@ import { cn } from '../lib/utils'
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
   { name: 'Competitors', href: '/competitors', icon: Users },
-  { name: 'Alerts', href: '/alerts', icon: Bell },
-  { name: 'Settings', href: '/settings', icon: Settings },
 ]
 
 export function Layout() {
@@ -32,17 +28,14 @@ export function Layout() {
         {/* Logo */}
         <div className="h-16 flex items-center px-6 border-b border-slate-100">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-forest-600 to-forest-800 flex items-center justify-center shadow-sm">
-              <TrendingUp className="w-5 h-5 text-white" />
-            </div>
-            <div>
-              <h1 className="font-display font-semibold text-slate-900 text-lg leading-none">
-                MarketPulse
-              </h1>
-              <p className="text-[11px] text-slate-500 mt-0.5">
-                Netherlands Market
-              </p>
-            </div>
+            <img
+              src="/weeklybrew-logo.png"
+              alt="WeeklyBrew"
+              className="w-10 h-10 object-contain"
+            />
+            <h1 className="font-display font-semibold text-slate-900 text-lg leading-none">
+              weeklybrew.io
+            </h1>
           </div>
         </div>
 
