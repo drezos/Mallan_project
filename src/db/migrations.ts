@@ -1,4 +1,5 @@
 import { pool } from './cache';
+import { seedJacksTenant } from './seeds';
 
 /**
  * User Competitors Migration
@@ -204,6 +205,9 @@ export async function runMigrations(): Promise<void> {
 
     // Run multi-tenant migrations
     await runMultiTenantMigrations();
+
+    // Seed Jacks.nl tenant if tenants table is empty
+    await seedJacksTenant();
   } catch (error) {
     console.error('❌ Failed to run migrations:', error);
     throw error;
