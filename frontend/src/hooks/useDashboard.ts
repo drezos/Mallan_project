@@ -3,10 +3,15 @@
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../lib/api';
 
-export function useDashboard() {
+/**
+ * Hook to fetch dashboard data
+ * @param tenant - Optional tenant name or ID. Defaults to Jacks.nl if not provided.
+ */
+export function useDashboard(tenant?: string) {
   return useQuery({
-    queryKey: ['dashboard'],
-    queryFn: () => api.getDashboard(),
+    // Include tenant in query key so different tenants have separate cache entries
+    queryKey: ['dashboard', tenant],
+    queryFn: () => api.getDashboard(tenant),
     staleTime: 5 * 60 * 1000, // 5 minutes
     retry: 2,
   });

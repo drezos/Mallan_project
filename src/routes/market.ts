@@ -268,13 +268,20 @@ router.get('/metrics', async (req: Request, res: Response) => {
 
 // =============================================================================
 // GET /api/market/dashboard - Get all dashboard data in one call (CACHED)
+// Supports ?tenant=<name> parameter for tenant switching
 // =============================================================================
 
 router.get('/dashboard', async (req: Request, res: Response) => {
   try {
-    console.log('🚀 Fetching dashboard data (cached)...');
+    const tenantParam = req.query.tenant as string | undefined;
 
-    const data = await cachedDataService.getDashboardData();
+    if (tenantParam) {
+      console.log(`🚀 Fetching dashboard data for tenant: ${tenantParam} (cached)...`);
+    } else {
+      console.log('🚀 Fetching dashboard data for default tenant (cached)...');
+    }
+
+    const data = await cachedDataService.getDashboardData(tenantParam);
 
     if (!data) {
       return res.status(503).json({
@@ -289,6 +296,15 @@ router.get('/dashboard', async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     console.error('❌ Error fetching dashboard:', error);
+
+    // Check if it's a "tenant not found" error
+    if (error.message?.includes('Tenant not found')) {
+      return res.status(404).json({
+        success: false,
+        error: error.message
+      });
+    }
+
     res.status(500).json({
       success: false,
       error: error.message
