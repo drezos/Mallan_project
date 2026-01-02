@@ -115,14 +115,16 @@ export function Dashboard() {
   const { volumeView } = useVolumeView();
 
   const isLoading = dashboardQuery.isLoading;
-  const isError = dashboardQuery.isError;
+  // Treat null API response as error (API returns null on fetch failure)
+  const isError = dashboardQuery.isError || (dashboardQuery.isFetched && dashboardQuery.data === null);
 
   const refetch = () => {
     dashboardQuery.refetch();
   };
 
   // Get data from dashboard response
-  const dashboardData = dashboardQuery.data?.data;
+  // Use optional chaining to safely handle null response
+  const dashboardData = dashboardQuery.data?.data ?? undefined;
 
   // Find own brand's rank from the brands list
   const ownBrandEntry = dashboardData?.brands?.find(b => b.isOwnBrand);
@@ -160,94 +162,124 @@ export function Dashboard() {
         priorityMarketShare: 0,
       }));
 
-  // Transform API data to component format
-  const transformedData = {
-    brandData: dashboardData?.overview?.yourBrand
-      ? {
-          name: dashboardData.overview.yourBrand.name || 'Jacks Casino',
-          searchVolume: dashboardData.overview.yourBrand.volume || mockBrandData.searchVolume,
-          priorityKeyword: dashboardData.overview.yourBrand.priorityKeyword || '',
-          priorityVolume: dashboardData.overview.yourBrand.priorityVolume || 0,
-          growth: ownBrandEntry?.velocity ?? mockBrandData.growth,
-          marketShare: dashboardData.overview.yourBrand.marketShare || mockBrandData.marketShare,
-          priorityMarketShare: dashboardData.overview.yourBrand.priorityMarketShare || 0,
-        }
-      : { ...mockBrandData, priorityKeyword: '', priorityVolume: 0, priorityMarketShare: 0 },
+  // Transform API data to component format - memoized to prevent unnecessary recalculations
+  const transformedData = useMemo(() => {
+    try {
+      return {
+        brandData: dashboardData?.overview?.yourBrand
+          ? {
+              name: dashboardData.overview.yourBrand.name || 'Unknown Brand',
+              searchVolume: dashboardData.overview.yourBrand.volume || mockBrandData.searchVolume,
+              priorityKeyword: dashboardData.overview.yourBrand.priorityKeyword || '',
+              priorityVolume: dashboardData.overview.yourBrand.priorityVolume || 0,
+              growth: ownBrandEntry?.velocity ?? mockBrandData.growth,
+              marketShare: dashboardData.overview.yourBrand.marketShare || mockBrandData.marketShare,
+              priorityMarketShare: dashboardData.overview.yourBrand.priorityMarketShare || 0,
+            }
+          : { ...mockBrandData, priorityKeyword: '', priorityVolume: 0, priorityMarketShare: 0 },
 
-    shareOfSearch: dashboardData?.overview?.yourBrand
-      ? {
-          current: volumeView === 'priority'
-            ? (dashboardData.overview.yourBrand.priorityMarketShare || mockShareOfSearch.current)
-            : (dashboardData.overview.yourBrand.marketShare || mockShareOfSearch.current),
-          change: mockShareOfSearch.change, // Change not in dashboard response
-          monthlyHistory: mockShareOfSearch.monthlyHistory,
-        }
-      : mockShareOfSearch,
+        shareOfSearch: dashboardData?.overview?.yourBrand
+          ? {
+              current: volumeView === 'priority'
+                ? (dashboardData.overview.yourBrand.priorityMarketShare || mockShareOfSearch.current)
+                : (dashboardData.overview.yourBrand.marketShare || mockShareOfSearch.current),
+              change: mockShareOfSearch.change, // Change not in dashboard response
+              monthlyHistory: mockShareOfSearch.monthlyHistory,
+            }
+          : mockShareOfSearch,
 
-    marketRank: dashboardData?.brands
-      ? {
-          current: ownBrandRank,
-          previous: ownBrandRank + 1,
-          change: 1,
-          total: dashboardData.brands.length,
-          totalCompetitors: dashboardData.brands.length,
-        }
-      : mockMarketRank,
+        marketRank: dashboardData?.brands && dashboardData.brands.length > 0
+          ? {
+              current: ownBrandRank,
+              previous: ownBrandRank + 1,
+              change: 1,
+              total: dashboardData.brands.length,
+              totalCompetitors: dashboardData.brands.length,
+            }
+          : mockMarketRank,
 
-    marketOpportunity: dashboardData?.overview
-      ? {
-          yourBrand: dashboardData.overview.yourBrand?.volume || mockMarketOpportunity.yourBrand,
-          competitors: dashboardData.overview.totalMarketVolume - (dashboardData.overview.yourBrand?.volume || 0),
-          generic: mockMarketOpportunity.generic,
-          total: dashboardData.overview.totalMarketVolume || mockMarketOpportunity.total,
-        }
-      : mockMarketOpportunity,
-    tamTrendData: mockTAMTrendData,
-    tam: dashboardData?.overview
-      ? { total: dashboardData.overview.totalMarketVolume, growth: mockTAM.growth }
-      : mockTAM,
-    tamGrowth: mockTAMGrowth,
+        marketOpportunity: dashboardData?.overview
+          ? {
+              yourBrand: dashboardData.overview.yourBrand?.volume || mockMarketOpportunity.yourBrand,
+              competitors: (dashboardData.overview.totalMarketVolume || 0) - (dashboardData.overview.yourBrand?.volume || 0),
+              generic: mockMarketOpportunity.generic,
+              total: dashboardData.overview.totalMarketVolume || mockMarketOpportunity.total,
+            }
+          : mockMarketOpportunity,
+        tamTrendData: mockTAMTrendData,
+        tam: dashboardData?.overview
+          ? { total: dashboardData.overview.totalMarketVolume || mockTAM.total, growth: mockTAM.growth }
+          : mockTAM,
+        tamGrowth: mockTAMGrowth,
 
-    // Use precomputed competitors for consistency with anomalies
-    competitors: computedCompetitors,
+        // Use precomputed competitors for consistency with anomalies
+        competitors: computedCompetitors,
 
-    // Generate trend data that matches actual brand volumes
-    competitiveTrendData: dashboardData?.brands
-      ? generateScaledTrendData(dashboardData.brands, mockCompetitiveTrendData)
-      : mockCompetitiveTrendData,
-    topRivals: dashboardData?.brands
-      ? dashboardData.brands.slice(0, 5).map(b => b.brandName)
-      : topRivals,
+        // Generate trend data that matches actual brand volumes
+        competitiveTrendData: dashboardData?.brands && dashboardData.brands.length > 0
+          ? generateScaledTrendData(dashboardData.brands, mockCompetitiveTrendData)
+          : mockCompetitiveTrendData,
+        topRivals: dashboardData?.brands && dashboardData.brands.length > 0
+          ? dashboardData.brands.slice(0, 5).map(b => b.brandName)
+          : topRivals,
 
-    anomalies: (() => {
-      if (dashboardData?.alerts?.length) {
-        return dashboardData.alerts.map((a, index) => {
-          const brandName = extractBrandName(a.message, allBrandNames);
-          return {
-            id: String(index + 1),
-            type: a.type,
-            impact: (a.severity === 'high' ? 'high' : 'info') as 'high' | 'info',
-            title: a.message.split(':')[0] || 'Alert',
-            // Update message with actual velocity from competitor data
-            message: updateAnomalyMessageWithVelocity(a.message, brandName, computedCompetitors),
-            metric: a.type === 'competitor' ? 'Search Volume' : 'Intent Shift',
-            timestamp: new Date().toISOString(),
-            brandName,
-          };
-        });
-      }
-      // For mock anomalies, update messages with actual velocity data
-      return mockAnomalies.map(a => {
-        const brandName = extractBrandName(a.title + ' ' + a.message, allBrandNames);
-        return {
-          ...a,
-          // Update message with actual velocity from competitor data
-          message: updateAnomalyMessageWithVelocity(a.message, brandName, computedCompetitors),
-          brandName,
-        };
-      });
-    })(),
-  };
+        anomalies: (() => {
+          if (dashboardData?.alerts && dashboardData.alerts.length > 0) {
+            return dashboardData.alerts.map((a, index) => {
+              const brandName = extractBrandName(a.message || '', allBrandNames);
+              return {
+                id: String(index + 1),
+                type: a.type || 'info',
+                impact: (a.severity === 'high' ? 'high' : 'info') as 'high' | 'info',
+                title: (a.message || '').split(':')[0] || 'Alert',
+                // Update message with actual velocity from competitor data
+                message: updateAnomalyMessageWithVelocity(a.message || '', brandName, computedCompetitors),
+                metric: a.type === 'competitor' ? 'Search Volume' : 'Intent Shift',
+                timestamp: new Date().toISOString(),
+                brandName,
+              };
+            });
+          }
+          // For mock anomalies, update messages with actual velocity data
+          return mockAnomalies.map(a => {
+            const brandName = extractBrandName(a.title + ' ' + a.message, allBrandNames);
+            return {
+              ...a,
+              // Update message with actual velocity from competitor data
+              message: updateAnomalyMessageWithVelocity(a.message, brandName, computedCompetitors),
+              brandName,
+            };
+          });
+        })(),
+      };
+    } catch (error) {
+      console.error('Error transforming dashboard data:', error);
+      // Return mock data on transformation error
+      return {
+        brandData: { ...mockBrandData, priorityKeyword: '', priorityVolume: 0, priorityMarketShare: 0 },
+        shareOfSearch: mockShareOfSearch,
+        marketRank: mockMarketRank,
+        marketOpportunity: mockMarketOpportunity,
+        tamTrendData: mockTAMTrendData,
+        tam: mockTAM,
+        tamGrowth: mockTAMGrowth,
+        competitors: mockCompetitors.filter((c) => c.name !== 'Jacks Casino').map(c => ({
+          id: c.id,
+          name: c.name,
+          searchVolume: c.searchVolume,
+          priorityKeyword: '',
+          priorityVolume: 0,
+          growth: c.monthlyChange,
+          status: 'normal' as 'normal' | 'watching' | 'threat',
+          marketShare: c.marketShare,
+          priorityMarketShare: 0,
+        })),
+        competitiveTrendData: mockCompetitiveTrendData,
+        topRivals: topRivals,
+        anomalies: mockAnomalies.map(a => ({ ...a, brandName: undefined })),
+      };
+    }
+  }, [dashboardData, volumeView, ownBrandEntry, ownBrandRank, computedCompetitors, allBrandNames]);
 
   // Prepare data for Brewed Context components
   const brewedContextData: BrewedContextData = useMemo(() => {
@@ -381,6 +413,28 @@ export function Dashboard() {
         <div className="text-center">
           <Loader2 className="w-8 h-8 animate-spin text-forest-500 mx-auto mb-3" />
           <p className="text-slate-500">Loading market intelligence...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state - show when API failed to load data
+  if (isError && !dashboardData) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <WifiOff className="w-8 h-8 text-amber-500 mx-auto mb-3" />
+          <p className="text-slate-700 font-medium mb-2">Unable to load dashboard</p>
+          <p className="text-slate-500 text-sm mb-4">
+            {tenant ? `Could not load data for tenant "${tenant}"` : 'Could not connect to the server'}
+          </p>
+          <button
+            onClick={() => refetch()}
+            className="px-4 py-2 bg-forest-500 text-white rounded-lg hover:bg-forest-600 transition-colors inline-flex items-center gap-2"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Try Again
+          </button>
         </div>
       </div>
     );
