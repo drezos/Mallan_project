@@ -5,6 +5,7 @@ import { Dashboard } from './pages/Dashboard'
 import { Competitors } from './pages/Competitors'
 import { Alerts } from './pages/Alerts'
 import { Settings } from './pages/Settings'
+import { Onboarding } from './pages/Onboarding'
 import { VolumeViewProvider } from './contexts/VolumeViewContext'
 
 function App() {
@@ -18,6 +19,7 @@ function App() {
       <SignedIn>
         <VolumeViewProvider>
           <Routes>
+            <Route path="/onboarding" element={<Onboarding />} />
             <Route path="/" element={<Layout />}>
               <Route index element={<Dashboard />} />
               <Route path="competitors" element={<Competitors />} />
