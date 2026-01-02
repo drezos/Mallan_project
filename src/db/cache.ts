@@ -165,6 +165,20 @@ export const cacheService = {
   },
 
   /**
+   * Clear all cache entries (delete from database)
+   */
+  async clearAll(): Promise<boolean> {
+    try {
+      const result = await pool.query(`DELETE FROM api_cache`);
+      console.log(`🗑️ Cleared ${result.rowCount} cache entries`);
+      return true;
+    } catch (error) {
+      console.error('❌ Cache clearAll error:', error);
+      return false;
+    }
+  },
+
+  /**
    * Get cache status for all entries
    */
   async getStatus(): Promise<Array<{

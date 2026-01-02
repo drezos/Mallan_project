@@ -62,6 +62,9 @@ async function start() {
     // Initialize cache table
     await cacheService.init();
 
+    // Clear stale cache data on startup (fixes incorrect dashboard data from previous competitor changes)
+    await cacheService.clearAll();
+
     // Run database migrations
     await runMigrations();
 
