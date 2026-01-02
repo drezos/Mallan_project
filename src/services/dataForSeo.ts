@@ -141,20 +141,22 @@ class DataForSEOService {
 
   /**
    * Fetch search volumes for all brand keywords and aggregate by brand
+   * @param dynamicBrands Optional list of brands to use instead of hardcoded config
    */
-  async getBrandSearchVolumes(): Promise<BrandSearchVolume[]> {
-    const allKeywords = brands.flatMap(brand => brand.keywords);
-    
-    console.log(`📊 Fetching search volumes for ${allKeywords.length} keywords...`);
-    
+  async getBrandSearchVolumes(dynamicBrands?: BrandConfig[]): Promise<BrandSearchVolume[]> {
+    const brandsToUse = dynamicBrands || brands;
+    const allKeywords = brandsToUse.flatMap(brand => brand.keywords);
+
+    console.log(`📊 Fetching search volumes for ${allKeywords.length} keywords across ${brandsToUse.length} brands...`);
+
     const results = await this.getSearchVolume(allKeywords);
-    
+
     // Create a map for quick lookup
     const volumeMap = new Map<string, SearchVolumeResult>();
     results.forEach(r => volumeMap.set(r.keyword.toLowerCase(), r));
 
     // Aggregate by brand
-    const brandVolumes: BrandSearchVolume[] = brands.map(brand => {
+    const brandVolumes: BrandSearchVolume[] = brandsToUse.map(brand => {
       const brandKeywordResults = brand.keywords.map(kw => {
         const result = volumeMap.get(kw.toLowerCase());
         return result || {

@@ -3,7 +3,40 @@ import { dataForSEOService } from './dataForSeo';
 import {
   calculateAllMetrics
 } from './metricsCalculator';
-import { brands, intentKeywords, getAllIntentKeywords, getOwnBrand } from '../config/brandKeywords';
+import { intentKeywords, getAllIntentKeywords, getOwnBrand, BrandConfig, competitorToBrandConfig } from '../config/brandKeywords';
+import { query } from '../db/migrations';
+
+interface UserCompetitor {
+  id: number;
+  name: string;
+  url: string | null;
+}
+
+/**
+ * Fetch competitors from the database and build dynamic brand list
+ * Returns own brand + competitors from user_competitors table
+ */
+async function getDynamicBrands(): Promise<BrandConfig[]> {
+  const ownBrand = getOwnBrand();
+  if (!ownBrand) {
+    throw new Error('Own brand not configured');
+  }
+
+  // Fetch competitors from database
+  const competitors = await query<UserCompetitor>(
+    'SELECT id, name, url FROM user_competitors ORDER BY created_at ASC'
+  );
+
+  console.log(`📊 Building brand list: 1 own brand + ${competitors.length} competitors from database`);
+
+  // Build brand configs from competitors
+  const competitorBrands = competitors.map((comp, index) =>
+    competitorToBrandConfig(comp, index)
+  );
+
+  // Return own brand + competitors
+  return [ownBrand, ...competitorBrands];
+}
 
 /**
  * Cached Market Data Service
@@ -20,8 +53,11 @@ export const cachedDataService = {
   async buildDashboardData(): Promise<any> {
     console.log('🚀 Building complete dashboard data...');
 
-    // Fetch brand volumes
-    const brandVolumes = await dataForSEOService.getBrandSearchVolumes();
+    // Get dynamic brands from database (own brand + competitors from user_competitors table)
+    const dynamicBrands = await getDynamicBrands();
+
+    // Fetch brand volumes using dynamic brand list
+    const brandVolumes = await dataForSEOService.getBrandSearchVolumes(dynamicBrands);
     brandVolumes.sort((a, b) => b.totalVolume - a.totalVolume);
 
     const totalMarketVolume = brandVolumes.reduce((sum, b) => sum + b.totalVolume, 0);
@@ -113,7 +149,7 @@ export const cachedDataService = {
             : 0,
           velocity: velocity,                     // Month-over-month % change
           isOwnBrand: brand.brandId === ownBrand?.id,
-          color: brands.find(b => b.id === brand.brandId)?.color
+          color: dynamicBrands.find(b => b.id === brand.brandId)?.color
         };
       }),
 
