@@ -318,7 +318,8 @@ router.get('/dashboard', async (req: Request, res: Response) => {
 
 router.get('/cache-status', async (req: Request, res: Response) => {
   try {
-    const status = await cachedDataService.getCacheStatus();
+    const tenantParam = req.query.tenant as string | undefined;
+    const status = await cachedDataService.getCacheStatus(tenantParam);
 
     res.json({
       success: true,
@@ -346,6 +347,7 @@ router.get('/cache-status', async (req: Request, res: Response) => {
 router.get('/refresh', async (req: Request, res: Response) => {
   try {
     const confirm = req.query.confirm === 'true';
+    const tenantParam = req.query.tenant as string | undefined;
 
     if (!confirm) {
       return res.json({
@@ -357,7 +359,7 @@ router.get('/refresh', async (req: Request, res: Response) => {
     }
 
     console.log('🔄 Force refresh requested by user...');
-    const result = await cachedDataService.refreshAll();
+    const result = await cachedDataService.refreshAll(tenantParam);
 
     res.json({
       success: result.success,

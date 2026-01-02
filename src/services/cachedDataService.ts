@@ -842,22 +842,26 @@ export const cachedDataService = {
   },
 
   /**
-   * Get brand trends data for current tenant
+   * Get brand trends data for a tenant
    * Refreshes weekly
+   *
+   * @param tenantName - Optional tenant name. If not provided, uses default tenant.
+   * @param forceRefresh - Force a cache refresh
    */
-  async getBrandTrends(forceRefresh = false): Promise<any> {
+  async getBrandTrends(tenantName?: string, forceRefresh = false): Promise<any> {
     const cacheKey = CACHE_KEYS.BRAND_TRENDS;
+    const effectiveTenantName = tenantName || DEFAULT_TENANT_NAME;
 
-    // Get current tenant ID
-    const tenantId = await getTenantIdByName(CURRENT_TENANT_NAME);
+    // Get tenant ID
+    const tenantId = await getTenantIdByName(effectiveTenantName);
     if (!tenantId) {
-      throw new Error(`Tenant not found: ${CURRENT_TENANT_NAME}`);
+      throw new Error(`Tenant not found: ${effectiveTenantName}`);
     }
 
     if (!forceRefresh) {
       const cached = await tenantCacheService.get(tenantId, cacheKey);
       if (cached && !cached.is_expired) {
-        console.log(`📦 Serving cached brand trends for tenant ${CURRENT_TENANT_NAME}`);
+        console.log(`📦 Serving cached brand trends for tenant ${effectiveTenantName}`);
         return cached.data;
       }
     }
@@ -887,22 +891,26 @@ export const cachedDataService = {
   },
 
   /**
-   * Get intent keywords data for current tenant
+   * Get intent keywords data for a tenant
    * Refreshes weekly
+   *
+   * @param tenantName - Optional tenant name. If not provided, uses default tenant.
+   * @param forceRefresh - Force a cache refresh
    */
-  async getIntentKeywords(forceRefresh = false): Promise<any> {
+  async getIntentKeywords(tenantName?: string, forceRefresh = false): Promise<any> {
     const cacheKey = CACHE_KEYS.INTENT_KEYWORDS;
+    const effectiveTenantName = tenantName || DEFAULT_TENANT_NAME;
 
-    // Get current tenant ID
-    const tenantId = await getTenantIdByName(CURRENT_TENANT_NAME);
+    // Get tenant ID
+    const tenantId = await getTenantIdByName(effectiveTenantName);
     if (!tenantId) {
-      throw new Error(`Tenant not found: ${CURRENT_TENANT_NAME}`);
+      throw new Error(`Tenant not found: ${effectiveTenantName}`);
     }
 
     if (!forceRefresh) {
       const cached = await tenantCacheService.get(tenantId, cacheKey);
       if (cached && !cached.is_expired) {
-        console.log(`📦 Serving cached intent keywords for tenant ${CURRENT_TENANT_NAME}`);
+        console.log(`📦 Serving cached intent keywords for tenant ${effectiveTenantName}`);
         return cached.data;
       }
     }
@@ -933,17 +941,20 @@ export const cachedDataService = {
   },
 
   /**
-   * Force refresh all cached data for current tenant
+   * Force refresh all cached data for a tenant
    * Use sparingly - this makes API calls!
+   *
+   * @param tenantName - Optional tenant name. If not provided, uses default tenant.
    */
-  async refreshAll(): Promise<{ success: boolean; refreshed: string[]; tenant_id?: string }> {
-    console.log('🔄 Refreshing all cached data...');
+  async refreshAll(tenantName?: string): Promise<{ success: boolean; refreshed: string[]; tenant_id?: string }> {
+    const effectiveTenantName = tenantName || DEFAULT_TENANT_NAME;
+    console.log(`🔄 Refreshing all cached data for tenant: ${effectiveTenantName}...`);
     const refreshed: string[] = [];
 
-    // Get current tenant ID
-    const tenantId = await getTenantIdByName(CURRENT_TENANT_NAME);
+    // Get tenant ID
+    const tenantId = await getTenantIdByName(effectiveTenantName);
     if (!tenantId) {
-      console.error(`Tenant not found: ${CURRENT_TENANT_NAME}`);
+      console.error(`Tenant not found: ${effectiveTenantName}`);
       return { success: false, refreshed };
     }
 
@@ -952,10 +963,10 @@ export const cachedDataService = {
       await tenantCacheService.invalidateAll(tenantId);
 
       // Refresh dashboard (this fetches most data)
-      await this.getDashboardData(true);
+      await this.getDashboardData(effectiveTenantName, true);
       refreshed.push('dashboard');
 
-      console.log(`✅ Refreshed ${refreshed.length} cache entries for tenant ${CURRENT_TENANT_NAME}`);
+      console.log(`✅ Refreshed ${refreshed.length} cache entries for tenant ${effectiveTenantName}`);
       return { success: true, refreshed, tenant_id: tenantId };
     } catch (error) {
       console.error('❌ Error refreshing all data:', error);
@@ -964,9 +975,11 @@ export const cachedDataService = {
   },
 
   /**
-   * Get cache status for current tenant
+   * Get cache status for a tenant
+   *
+   * @param tenantName - Optional tenant name. If not provided, uses default tenant.
    */
-  async getCacheStatus(): Promise<{
+  async getCacheStatus(tenantName?: string): Promise<{
     tenant_id: string | null;
     tenant_name: string;
     entries: Array<{
@@ -977,12 +990,14 @@ export const cachedDataService = {
     }>;
     next_refresh: { hours: number; minutes: number } | null;
   }> {
-    // Get current tenant ID
-    const tenantId = await getTenantIdByName(CURRENT_TENANT_NAME);
+    const effectiveTenantName = tenantName || DEFAULT_TENANT_NAME;
+
+    // Get tenant ID
+    const tenantId = await getTenantIdByName(effectiveTenantName);
     if (!tenantId) {
       return {
         tenant_id: null,
-        tenant_name: CURRENT_TENANT_NAME,
+        tenant_name: effectiveTenantName,
         entries: [],
         next_refresh: null
       };
@@ -993,7 +1008,7 @@ export const cachedDataService = {
 
     return {
       tenant_id: tenantId,
-      tenant_name: CURRENT_TENANT_NAME,
+      tenant_name: effectiveTenantName,
       entries,
       next_refresh: nextRefresh
     };
