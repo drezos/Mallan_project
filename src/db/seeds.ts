@@ -109,3 +109,132 @@ export async function seedJacksTenant(): Promise<void> {
 
   console.log(`✅ Seeded Jacks.nl tenant with ${brandKeywordCount} brand keywords, ${competitorCount} competitors, ${marketKeywordCount} market keywords`);
 }
+
+/**
+ * Quicklets Malta Competitor and Market Keyword Data
+ * Seeds competitors and market keywords for Malta real estate tenant
+ */
+
+// Malta real estate competitors
+const QUICKLETS_COMPETITORS = [
+  {
+    name: 'Dhalia',
+    url: 'https://www.dhalia.com',
+    keywords: ['dhalia', 'dhalia malta', 'dhalia property'],
+  },
+  {
+    name: 'Frank Salt',
+    url: 'https://www.franksalt.com.mt',
+    keywords: ['frank salt', 'frank salt malta', 'frank salt property'],
+  },
+  {
+    name: 'Alliance',
+    url: 'https://www.alliance.com.mt',
+    keywords: ['alliance malta', 'alliance property'],
+  },
+  {
+    name: 'Perry',
+    url: 'https://www.perry.com.mt',
+    keywords: ['perry malta', 'perry real estate'],
+  },
+  {
+    name: 'Benestates',
+    url: 'https://www.benestates.com',
+    keywords: ['benestates', 'benestates malta'],
+  },
+  {
+    name: 'Zanzi',
+    url: 'https://www.zanzi.com.mt',
+    keywords: ['zanzi homes', 'zanzi malta'],
+  },
+];
+
+// Malta market keywords (comparison category)
+const QUICKLETS_MARKET_KEYWORDS = [
+  'apartments for rent malta',
+  'apartments for sale in malta',
+  'buy apartment malta',
+  'property malta for sale',
+];
+
+/**
+ * Seed Quicklets tenant with Malta real estate competitors and market keywords
+ */
+export async function seedQuickletsData(): Promise<void> {
+  console.log('🌱 Seeding Quicklets Malta data...');
+
+  // Get Quicklets tenant ID
+  const tenantResult = await pool.query(
+    "SELECT id FROM tenants WHERE name = 'Quicklets'"
+  );
+
+  if (tenantResult.rows.length === 0) {
+    console.log('❌ Quicklets tenant not found. Please create the tenant first.');
+    return;
+  }
+
+  const tenantId = tenantResult.rows[0].id;
+  console.log(`  Found Quicklets tenant: ${tenantId}`);
+
+  // Check if competitors already exist
+  const existingCompetitors = await pool.query(
+    'SELECT COUNT(*) as count FROM tenant_competitors WHERE tenant_id = $1',
+    [tenantId]
+  );
+
+  if (parseInt(existingCompetitors.rows[0].count, 10) > 0) {
+    console.log('⏭️  Quicklets competitors already seeded, skipping...');
+    return;
+  }
+
+  // Add competitors and their keywords
+  let competitorCount = 0;
+  let competitorKeywordCount = 0;
+
+  for (const competitor of QUICKLETS_COMPETITORS) {
+    // Insert competitor
+    const competitorResult = await pool.query(
+      `INSERT INTO tenant_competitors (tenant_id, name, url)
+       VALUES ($1, $2, $3)
+       RETURNING id`,
+      [tenantId, competitor.name, competitor.url]
+    );
+    const competitorId = competitorResult.rows[0].id;
+    competitorCount++;
+
+    // Insert competitor keywords
+    for (const keyword of competitor.keywords) {
+      await pool.query(
+        `INSERT INTO tenant_competitor_keywords (tenant_id, competitor_id, keyword)
+         VALUES ($1, $2, $3)`,
+        [tenantId, competitorId, keyword]
+      );
+      competitorKeywordCount++;
+    }
+  }
+
+  console.log(`  ✅ Added ${competitorCount} competitors with ${competitorKeywordCount} keywords`);
+
+  // Add market keywords
+  let marketKeywordCount = 0;
+
+  for (const keyword of QUICKLETS_MARKET_KEYWORDS) {
+    await pool.query(
+      `INSERT INTO tenant_market_keywords (tenant_id, keyword, category)
+       VALUES ($1, $2, $3)`,
+      [tenantId, keyword, 'comparison']
+    );
+    marketKeywordCount++;
+  }
+
+  console.log(`  ✅ Added ${marketKeywordCount} market keywords (category: comparison)`);
+
+  // Clear tenant cache
+  await pool.query(
+    'DELETE FROM tenant_cache WHERE tenant_id = $1',
+    [tenantId]
+  );
+  console.log('  ✅ Cleared Quicklets tenant cache');
+
+  console.log(`✅ Seeded Quicklets Malta: ${competitorCount} competitors, ${competitorKeywordCount} competitor keywords, ${marketKeywordCount} market keywords`);
+}
