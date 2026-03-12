@@ -9,6 +9,7 @@ dotenv.config();
 import marketRouter from './routes/market';
 import userCompetitorsRouter from './routes/user-competitors';
 import tenantsRouter from './routes/tenants';
+import authRoutes from './routes/auth';
 
 // Import cache service for initialization
 import { cacheService } from './db/cache';
@@ -33,6 +34,7 @@ app.use((req, res, next) => {
 app.use('/api/market', marketRouter);
 app.use('/api/user/competitors', userCompetitorsRouter);
 app.use('/api/tenants', tenantsRouter);
+app.use('/api/auth', authRoutes);
 
 // Root endpoint
 app.get('/', (req, res) => {
