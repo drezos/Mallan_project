@@ -159,6 +159,26 @@ async function runMultiTenantMigrations(): Promise<void> {
   `);
 
   console.log('  ✅ tenant_cache table created');
+
+  // 7. Create tenant_connections table
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS tenant_connections (
+      id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+      tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+      platform VARCHAR(100) NOT NULL,
+      access_token TEXT NOT NULL,
+      refresh_token TEXT,
+      expires_at TIMESTAMP WITH TIME ZONE,
+      connected_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+      UNIQUE(tenant_id, platform)
+    )
+  `);
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_tenant_connections_tenant ON tenant_connections(tenant_id)
+  `);
+
+  console.log('  ✅ tenant_connections table created');
   console.log('✅ Multi-tenant schema migrations complete');
 }
 
