@@ -41,7 +41,7 @@ app.get('/', (req, res) => {
   res.json({
     name: 'MarketPulse API',
     version: '1.1.0',
-    description: 'Dutch iGaming Market Intelligence',
+    description: 'WeeklyBrew Marketing Analytics',
     features: {
       caching: 'Weekly database-backed cache',
       refresh: 'Manual or 7-day auto-expiry'
@@ -57,7 +57,8 @@ app.get('/', (req, res) => {
       forceRefresh: '/api/market/refresh',
       userCompetitors: '/api/user/competitors',
       tenantsCreate: '/api/tenants/create',
-      tenantsGet: '/api/tenants/:id'
+      tenantsGet: '/api/tenants/:id',
+      googleAuth: '/api/auth/connect/google'
     }
   });
 });
