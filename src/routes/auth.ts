@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { google } from 'googleapis';
 import { pool } from '../db/migrations';
+import { getGa4Metrics } from '../services/ga4Client';
 
 const router = Router();
 
@@ -77,6 +78,23 @@ router.get('/callback/google', async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Google OAuth error:', error instanceof Error ? error.stack : error);
     res.status(500).json({ error: 'Failed to exchange code for tokens' });
+  }
+});
+
+// Test endpoint: GET /api/auth/test-ga4?tenant_id=<uuid>
+router.get('/test-ga4', async (req: Request, res: Response) => {
+  const { tenant_id } = req.query;
+
+  if (!tenant_id) {
+    return res.status(400).json({ error: 'tenant_id is required' });
+  }
+
+  try {
+    const metrics = await getGa4Metrics(tenant_id as string);
+    res.json(metrics);
+  } catch (error) {
+    console.error('GA4 test error:', error instanceof Error ? error.stack : error);
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to fetch GA4 metrics' });
   }
 });
 
