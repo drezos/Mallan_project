@@ -52,6 +52,8 @@ router.get('/callback/google', async (req: Request, res: Response) => {
       ? new Date(tokens.expiry_date).toISOString()
       : null;
 
+    console.log(`Upserting tokens for tenant_id: ${tenant_id}`);
+
     await pool.query(
       `INSERT INTO tenant_connections (tenant_id, platform, access_token, refresh_token, expires_at)
        VALUES ($1, $2, $3, $4, $5)
@@ -73,7 +75,7 @@ router.get('/callback/google', async (req: Request, res: Response) => {
     });
 
   } catch (error) {
-    console.error('Google OAuth error:', error);
+    console.error('Google OAuth error:', error instanceof Error ? error.stack : error);
     res.status(500).json({ error: 'Failed to exchange code for tokens' });
   }
 });
