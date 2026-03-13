@@ -10,6 +10,7 @@ import marketRouter from './routes/market';
 import userCompetitorsRouter from './routes/user-competitors';
 import tenantsRouter from './routes/tenants';
 import authRoutes from './routes/auth';
+import webhooksRouter from './routes/webhooks';
 
 // Import cache service for initialization
 import { cacheService } from './db/cache';
@@ -22,6 +23,11 @@ const PORT = process.env.PORT || 3000;
 
 // Middleware
 app.use(cors());
+
+// Webhook routes must be registered before express.json() so the route-level
+// express.raw() middleware can read the raw body for signature verification.
+app.use('/api/webhooks', webhooksRouter);
+
 app.use(express.json());
 
 // Request logging
