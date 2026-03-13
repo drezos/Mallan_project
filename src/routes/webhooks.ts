@@ -39,8 +39,9 @@ router.post('/clerk', express.raw({ type: 'application/json' }), async (req: Req
     const { id: clerkId, email_addresses } = event.data;
     const email = email_addresses?.[0]?.email_address;
 
+    const resolvedEmail = email ?? 'unknown@weeklybrew.io';
     if (!email) {
-      return res.status(400).json({ error: 'No email address in event data' });
+      console.warn(`No email found for Clerk user ${clerkId}, using fallback: ${resolvedEmail}`);
     }
 
     const client = await pool.connect();
@@ -51,19 +52,19 @@ router.post('/clerk', express.raw({ type: 'application/json' }), async (req: Req
         `INSERT INTO tenants (id, name, brand_name, brand_url, region_code, region_name)
          VALUES (gen_random_uuid(), $1, '', '', 0, '')
          RETURNING id`,
-        [email]
+        [resolvedEmail]
       );
       const tenantId = tenantResult.rows[0].id;
 
       await client.query(
         `INSERT INTO users (email, clerk_id, tenant_id)
          VALUES ($1, $2, $3)`,
-        [email, clerkId, tenantId]
+        [resolvedEmail, clerkId, tenantId]
       );
 
       await client.query('COMMIT');
 
-      console.log(`✅ Created tenant and user for Clerk user ${clerkId} (${email})`);
+      console.log(`✅ Created tenant and user for Clerk user ${clerkId} (${resolvedEmail})`);
       return res.status(200).json({ success: true });
     } catch (err) {
       await client.query('ROLLBACK');
