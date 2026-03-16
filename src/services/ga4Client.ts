@@ -41,7 +41,7 @@ export async function getGa4Metrics(tenantId: string): Promise<{
         dimensions: [{ name: 'sessionSource' }],
         metrics: [{ name: 'sessions' }],
         orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
-        limit: 5,
+        limit: '5',
       },
     }),
   ]);
