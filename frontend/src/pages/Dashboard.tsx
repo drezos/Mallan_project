@@ -116,13 +116,6 @@ export function Dashboard() {
   const dashboardQuery = useDashboard(tenant);
   const analyticsQuery = useAnalyticsDashboard(tenant);
 
-  console.log('=== Dashboard Debug ===');
-  console.log('tenant:', tenant);
-  console.log('dashboardQuery.isLoading:', dashboardQuery.isLoading);
-  console.log('dashboardQuery.isError:', dashboardQuery.isError);
-  console.log('dashboardQuery.isFetched:', dashboardQuery.isFetched);
-  console.log('dashboardQuery.data:', dashboardQuery.data);
-
   const { volumeView } = useVolumeView();
 
   const isLoading = dashboardQuery.isLoading;
@@ -131,6 +124,7 @@ export function Dashboard() {
 
   const refetch = () => {
     dashboardQuery.refetch();
+    analyticsQuery.refetch();
   };
 
   // Get data from dashboard response
