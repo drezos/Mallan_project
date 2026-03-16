@@ -10,7 +10,9 @@ import { CompetitorHighlights } from '../components/CompetitorHighlights'
 import { AnomaliesPanel } from '../components/AnomaliesPanel'
 import { VolumeToggle } from '../components/VolumeToggle'
 import { useDashboard } from '../hooks/useDashboard'
+import { useAnalyticsDashboard } from '../hooks/useAnalyticsDashboard'
 import { useVolumeView } from '../contexts/VolumeViewContext'
+import type { AnalyticsDashboardResponse } from '../lib/api'
 import {
   mockBrandData,
   mockShareOfSearch,
@@ -112,6 +114,7 @@ export function Dashboard() {
   const tenant = searchParams.get('tenant') || undefined;
 
   const dashboardQuery = useDashboard(tenant);
+  const analyticsQuery = useAnalyticsDashboard(tenant);
 
   console.log('=== Dashboard Debug ===');
   console.log('tenant:', tenant);
@@ -489,6 +492,21 @@ export function Dashboard() {
       </div>
 
       {/* ===========================================
+          ANALYTICS PILLARS
+          =========================================== */}
+      <section>
+        <h2 className="text-lg font-display font-semibold text-slate-800 mb-4 opacity-0 animate-fade-in">
+          Performance Overview
+        </h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+          <AdsPillar data={analyticsQuery.data?.ads} isLoading={analyticsQuery.isLoading} />
+          <WebsitePillar data={analyticsQuery.data?.website} isLoading={analyticsQuery.isLoading} />
+          <BrandPillar data={analyticsQuery.data?.brand} isLoading={analyticsQuery.isLoading} />
+          <SocialPillar />
+        </div>
+      </section>
+
+      {/* ===========================================
           ZONE 1: Espresso Shot (Top Row - 50/50)
           =========================================== */}
       <section>
@@ -595,6 +613,125 @@ export function Dashboard() {
       </section>
     </div>
   )
+}
+
+// ===========================================
+// Analytics Pillar Components
+// ===========================================
+
+function PillarSkeleton() {
+  return (
+    <div className="card p-6 animate-pulse">
+      <div className="h-4 bg-slate-200 rounded w-1/2 mb-4" />
+      <div className="space-y-3">
+        {[1, 2, 3, 4].map(i => (
+          <div key={i} className="flex justify-between">
+            <div className="h-3 bg-slate-100 rounded w-1/3" />
+            <div className="h-3 bg-slate-100 rounded w-1/4" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function MetricRow({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div className="flex justify-between items-center py-1.5 border-b border-slate-100 last:border-0">
+      <span className="text-xs text-slate-500">{label}</span>
+      <span className="text-sm font-medium text-slate-800">{value}</span>
+    </div>
+  );
+}
+
+function AdsPillar({ data, isLoading }: { data?: AnalyticsDashboardResponse['ads']; isLoading: boolean }) {
+  if (isLoading) return <PillarSkeleton />;
+  return (
+    <div className="card p-6">
+      <h3 className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
+        <span className="w-2 h-2 rounded-full bg-blue-500 inline-block" />
+        Ads
+      </h3>
+      <div>
+        <MetricRow label="Spend" value={data ? `€${data.spend.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'} />
+        <MetricRow label="CPA" value={data ? `€${data.cpa.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'} />
+        <MetricRow label="ROAS" value={data ? `${data.roas.toFixed(2)}x` : '—'} />
+        <MetricRow label="Conversions" value={data ? data.conversions.toLocaleString('nl-NL') : '—'} />
+        <MetricRow label="CTR" value={data ? `${data.ctr.toFixed(2)}%` : '—'} />
+      </div>
+    </div>
+  );
+}
+
+function WebsitePillar({ data, isLoading }: { data?: AnalyticsDashboardResponse['website']; isLoading: boolean }) {
+  if (isLoading) return <PillarSkeleton />;
+  return (
+    <div className="card p-6">
+      <h3 className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
+        <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
+        Website
+      </h3>
+      <div>
+        <MetricRow label="Sessions" value={data ? data.sessions.toLocaleString('nl-NL') : '—'} />
+        <MetricRow label="Users" value={data ? data.users.toLocaleString('nl-NL') : '—'} />
+        <MetricRow label="New Users" value={data ? data.newUsers.toLocaleString('nl-NL') : '—'} />
+        <MetricRow label="Bounce Rate" value={data ? `${data.bounceRate.toFixed(1)}%` : '—'} />
+      </div>
+      {data && data.topSources.length > 0 && (
+        <div className="mt-3 pt-3 border-t border-slate-100">
+          <p className="text-xs text-slate-400 mb-2">Top Sources</p>
+          {data.topSources.slice(0, 3).map(s => (
+            <div key={s.source} className="flex justify-between items-center py-1">
+              <span className="text-xs text-slate-500 truncate max-w-[60%]">{s.source}</span>
+              <span className="text-xs font-medium text-slate-700">{s.sessions.toLocaleString('nl-NL')}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function BrandPillar({ data, isLoading }: { data?: AnalyticsDashboardResponse['brand']; isLoading: boolean }) {
+  if (isLoading) return <PillarSkeleton />;
+  return (
+    <div className="card p-6">
+      <h3 className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
+        <span className="w-2 h-2 rounded-full bg-violet-500 inline-block" />
+        Brand Search
+      </h3>
+      <div>
+        <MetricRow label="Impressions" value={data ? data.impressions.toLocaleString('nl-NL') : '—'} />
+        <MetricRow label="Clicks" value={data ? data.clicks.toLocaleString('nl-NL') : '—'} />
+        <MetricRow label="Avg. Position" value={data ? data.avgPosition.toFixed(1) : '—'} />
+      </div>
+      {data && data.topQueries.length > 0 && (
+        <div className="mt-3 pt-3 border-t border-slate-100">
+          <p className="text-xs text-slate-400 mb-2">Top Queries</p>
+          {data.topQueries.slice(0, 3).map((q: { query: string; clicks: number; impressions: number }) => (
+            <div key={q.query} className="flex justify-between items-center py-1">
+              <span className="text-xs text-slate-500 truncate max-w-[60%]">{q.query}</span>
+              <span className="text-xs font-medium text-slate-700">{q.clicks.toLocaleString('nl-NL')} clk</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SocialPillar() {
+  return (
+    <div className="card p-6 flex flex-col items-center justify-center text-center min-h-[160px]">
+      <h3 className="text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
+        <span className="w-2 h-2 rounded-full bg-pink-400 inline-block" />
+        Social
+      </h3>
+      <p className="text-xs text-slate-400 leading-relaxed">
+        Connect Meta &amp; LinkedIn to see social data
+      </p>
+    </div>
+  );
 }
 
 function getTimeOfDay(): string {
