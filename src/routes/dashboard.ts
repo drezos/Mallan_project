@@ -10,7 +10,7 @@ const CACHE_KEY = 'tenant_dashboard';
 const CACHE_DURATION_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 const DEFAULT_ADS = { spend: 0, cpa: 0, roas: 0, conversions: 0, ctr: 0 };
-const DEFAULT_WEBSITE = { sessions: 0, users: 0, bounceRate: 0 };
+const DEFAULT_WEBSITE = { sessions: 0, users: 0, newUsers: 0, bounceRate: 0, topSources: [] as Array<{ source: string; sessions: number }> };
 const DEFAULT_BRAND = { impressions: 0, clicks: 0, avgPosition: 0, topQueries: [] as any[] };
 
 router.get('/', async (req: Request, res: Response) => {
@@ -46,7 +46,8 @@ router.get('/', async (req: Request, res: Response) => {
 
   let website = DEFAULT_WEBSITE;
   if (websiteResult.status === 'fulfilled') {
-    website = { sessions: websiteResult.value.sessions, users: websiteResult.value.users, bounceRate: 0 };
+    const w = websiteResult.value;
+    website = { sessions: w.sessions, users: w.users, newUsers: w.newUsers, bounceRate: w.bounceRate, topSources: w.topSources };
   } else {
     console.error('[dashboard] GA4 error for tenant', tenantId, ':', websiteResult.reason);
   }
