@@ -2,6 +2,7 @@
 // Connects to Railway backend
 
 const API_BASE_URL = 'https://mallanproject-production.up.railway.app';
+const ANALYTICS_API_URL = import.meta.env.VITE_API_URL || API_BASE_URL;
 
 // ===========================================
 // TYPES
@@ -149,6 +150,30 @@ export interface DashboardResponse {
   };
 }
 
+export interface AnalyticsDashboardResponse {
+  ads: {
+    spend: number;
+    cpa: number;
+    roas: number;
+    conversions: number;
+    ctr: number;
+  };
+  website: {
+    sessions: number;
+    users: number;
+    newUsers: number;
+    bounceRate: number;
+    topSources: Array<{ source: string; sessions: number }>;
+  };
+  brand: {
+    impressions: number;
+    clicks: number;
+    avgPosition: number;
+    topQueries: Array<{ query: string; clicks: number; impressions: number }>;
+  };
+  social: Record<string, unknown>;
+}
+
 export const api = {
   /**
    * Fetch dashboard data for a tenant
@@ -244,6 +269,19 @@ export const api = {
     } catch (error) {
       console.error('Error fetching alert count:', error);
       return { count: 0, highPriority: 0 };
+    }
+  },
+
+  async getAnalyticsDashboard(tenantId: string): Promise<AnalyticsDashboardResponse | null> {
+    try {
+      const url = new URL(`${ANALYTICS_API_URL}/api/dashboard`);
+      url.searchParams.set('tenant_id', tenantId);
+      const response = await fetch(url.toString());
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching analytics dashboard:', error);
+      return null;
     }
   },
 };
