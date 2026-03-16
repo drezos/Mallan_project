@@ -11,6 +11,7 @@ import userCompetitorsRouter from './routes/user-competitors';
 import tenantsRouter from './routes/tenants';
 import authRoutes from './routes/auth';
 import webhooksRouter from './routes/webhooks';
+import dashboardRouter from './routes/dashboard';
 
 // Import cache service for initialization
 import { cacheService } from './db/cache';
@@ -40,6 +41,7 @@ app.use('/api/market', marketRouter);
 app.use('/api/user/competitors', userCompetitorsRouter);
 app.use('/api/tenants', tenantsRouter);
 app.use('/api/auth', authRoutes);
+app.use('/api/dashboard', dashboardRouter);
 
 // Root endpoint
 app.get('/', (req, res) => {
