@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { google } from 'googleapis';
+import axios from 'axios';
 import { pool } from '../db/migrations';
 import { getGa4Metrics } from '../services/ga4Client';
 
@@ -15,6 +16,15 @@ const SCOPES = [
   'https://www.googleapis.com/auth/analytics.readonly',
   'https://www.googleapis.com/auth/webmasters.readonly',
   'https://www.googleapis.com/auth/adwords',
+];
+
+const META_SCOPES = [
+  'ads_read',
+  'pages_show_list',
+  'pages_read_engagement',
+  'read_insights',
+  'instagram_basic',
+  'instagram_manage_insights',
 ];
 
 // Step 1: Send user to Google login page
@@ -69,15 +79,100 @@ router.get('/callback/google', async (req: Request, res: Response) => {
 
     console.log(`✅ Google tokens saved to tenant_connections for tenant ${tenant_id}`);
 
-    res.json({
-      success: true,
-      message: 'Google connected successfully',
-      has_refresh_token: !!tokens.refresh_token,
-    });
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    res.redirect(`${frontendUrl}/dashboard?connected=google`);
 
   } catch (error) {
     console.error('Google OAuth error:', error instanceof Error ? error.stack : error);
     res.status(500).json({ error: 'Failed to exchange code for tokens' });
+  }
+});
+
+// Step 1: Send user to Facebook login page
+router.get('/connect/meta', (req: Request, res: Response) => {
+  const { tenant_id } = req.query;
+
+  if (!tenant_id) {
+    return res.status(400).json({ error: 'tenant_id is required' });
+  }
+
+  const params = new URLSearchParams({
+    client_id: process.env.META_APP_ID || '',
+    redirect_uri: process.env.META_REDIRECT_URI || 'http://localhost:3000/api/auth/callback/meta',
+    scope: META_SCOPES.join(','),
+    state: tenant_id as string,
+    response_type: 'code',
+  });
+
+  res.redirect(`https://www.facebook.com/v19.0/dialog/oauth?${params.toString()}`);
+});
+
+// Step 2: Facebook sends user back here with a code
+router.get('/callback/meta', async (req: Request, res: Response) => {
+  const { code, state: tenant_id, error: oauthError } = req.query;
+
+  if (oauthError) {
+    return res.status(400).json({ error: `Facebook OAuth error: ${oauthError}` });
+  }
+
+  if (!code) {
+    return res.status(400).json({ error: 'No code received from Facebook' });
+  }
+
+  if (!tenant_id) {
+    return res.status(400).json({ error: 'No tenant_id in OAuth state' });
+  }
+
+  try {
+    const redirectUri = process.env.META_REDIRECT_URI || 'http://localhost:3000/api/auth/callback/meta';
+
+    // Exchange auth code for a short-lived token
+    const tokenRes = await axios.get('https://graph.facebook.com/v19.0/oauth/access_token', {
+      params: {
+        client_id: process.env.META_APP_ID,
+        client_secret: process.env.META_APP_SECRET,
+        redirect_uri: redirectUri,
+        code,
+      },
+    });
+    const shortLivedToken: string = tokenRes.data.access_token;
+
+    // Exchange short-lived token for a long-lived token (60 days)
+    const longLivedRes = await axios.get('https://graph.facebook.com/v19.0/oauth/access_token', {
+      params: {
+        grant_type: 'fb_exchange_token',
+        client_id: process.env.META_APP_ID,
+        client_secret: process.env.META_APP_SECRET,
+        fb_exchange_token: shortLivedToken,
+      },
+    });
+    const longLivedToken: string = longLivedRes.data.access_token;
+    const expiresInSeconds: number = longLivedRes.data.expires_in ?? 5184000; // default 60 days
+    const expiresAt = new Date(Date.now() + expiresInSeconds * 1000).toISOString();
+
+    console.log(`Upserting Meta tokens for tenant_id: ${tenant_id}`);
+
+    // Meta doesn't issue refresh tokens — store null
+    await pool.query(
+      `INSERT INTO tenant_connections (tenant_id, platform, access_token, refresh_token, expires_at)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (tenant_id, platform)
+       DO UPDATE SET
+         access_token = EXCLUDED.access_token,
+         refresh_token = NULL,
+         expires_at = EXCLUDED.expires_at,
+         connected_at = NOW()`,
+      [tenant_id, 'meta', longLivedToken, null, expiresAt]
+    );
+
+    console.log(`✅ Meta long-lived token saved to tenant_connections for tenant ${tenant_id}`);
+
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    res.redirect(`${frontendUrl}/dashboard?connected=meta`);
+
+  } catch (error) {
+    console.error('Meta OAuth error:', error instanceof Error ? error.stack : error);
+    res.status(500).json({ error: 'Failed to exchange code for Meta tokens' });
   }
 });
 
