@@ -3,13 +3,16 @@ import { pool } from '../db/cache';
 import { getGa4Metrics } from '../services/ga4Client';
 import { getGoogleAdsMetrics } from '../services/googleAdsClient';
 import { getSearchConsoleMetrics } from '../services/searchConsoleClient';
+import { getMetaAdsMetrics } from '../services/metaAdsClient';
+import { getMetaSocialMetrics } from '../services/metaSocialClient';
 
 const router = Router();
 
 const CACHE_KEY = 'tenant_dashboard';
 const CACHE_DURATION_MS = 24 * 60 * 60 * 1000; // 24 hours
 
-const DEFAULT_ADS = { spend: 0, cpa: 0, roas: 0, conversions: 0, ctr: 0 };
+const DEFAULT_ADS = { spend: 0, cpa: 0, roas: 0, conversions: 0, ctr: 0, clicks: 0, impressions: 0, google: { spend: 0, cpa: 0, roas: 0, conversions: 0, ctr: 0, clicks: 0, impressions: 0 }, meta: { spend: 0, cpa: 0, roas: 0, conversions: 0, ctr: 0, clicks: 0, impressions: 0 } };
+const DEFAULT_SOCIAL = { reach: 0, impressions: 0, engagementRate: 0, followerGrowth: 0, platforms: { facebook: { impressions: 0, engagedUsers: 0, fans: 0 }, instagram: { impressions: 0, reach: 0, followerCount: 0 } } };
 const DEFAULT_WEBSITE = { sessions: 0, users: 0, newUsers: 0, bounceRate: 0, topSources: [] as Array<{ source: string; sessions: number }> };
 const DEFAULT_BRAND = { impressions: 0, clicks: 0, avgPosition: 0, topQueries: [] as any[] };
 
@@ -37,11 +40,13 @@ router.get('/', async (req: Request, res: Response) => {
     console.error('[dashboard] Cache read error:', err);
   }
 
-  // Fetch all three sources in parallel — if one fails, others still return data
-  const [websiteResult, adsResult, brandResult] = await Promise.allSettled([
+  // Fetch all five sources in parallel — if one fails, others still return data
+  const [websiteResult, adsResult, brandResult, metaAdsResult, metaSocialResult] = await Promise.allSettled([
     getGa4Metrics(tenantId),
     getGoogleAdsMetrics(tenantId),
     getSearchConsoleMetrics(tenantId),
+    getMetaAdsMetrics(tenantId),
+    getMetaSocialMetrics(tenantId),
   ]);
 
   let website = DEFAULT_WEBSITE;
@@ -52,13 +57,35 @@ router.get('/', async (req: Request, res: Response) => {
     console.error('[dashboard] GA4 error for tenant', tenantId, ':', websiteResult.reason);
   }
 
-  let ads = DEFAULT_ADS;
-  if (adsResult.status === 'fulfilled') {
-    const a = adsResult.value;
-    ads = { spend: a.spend, cpa: a.cpa, roas: a.roas, conversions: a.conversions, ctr: a.ctr };
-  } else {
-    console.error('[dashboard] Google Ads error for tenant', tenantId, ':', adsResult.reason);
-  }
+  const googleAds = adsResult.status === 'fulfilled'
+    ? adsResult.value
+    : (console.error('[dashboard] Google Ads error for tenant', tenantId, ':', (adsResult as PromiseRejectedResult).reason), DEFAULT_ADS.google);
+
+  const metaAds = metaAdsResult.status === 'fulfilled'
+    ? metaAdsResult.value
+    : (console.error('[dashboard] Meta Ads error for tenant', tenantId, ':', (metaAdsResult as PromiseRejectedResult).reason), DEFAULT_ADS.meta);
+
+  const combinedSpend = googleAds.spend + metaAds.spend;
+  const combinedConversions = googleAds.conversions + metaAds.conversions;
+  const combinedClicks = googleAds.clicks + metaAds.clicks;
+  const combinedImpressions = googleAds.impressions + metaAds.impressions;
+  const combinedCpa = combinedConversions > 0 ? combinedSpend / combinedConversions : 0;
+  const combinedRoas = combinedSpend > 0
+    ? (googleAds.roas * googleAds.spend + metaAds.roas * metaAds.spend) / combinedSpend
+    : 0;
+  const combinedCtr = combinedImpressions > 0 ? (combinedClicks / combinedImpressions) * 100 : 0;
+
+  const ads = {
+    spend: combinedSpend,
+    cpa: combinedCpa,
+    roas: combinedRoas,
+    conversions: combinedConversions,
+    ctr: combinedCtr,
+    clicks: combinedClicks,
+    impressions: combinedImpressions,
+    google: googleAds,
+    meta: metaAds,
+  };
 
   let brand = DEFAULT_BRAND;
   if (brandResult.status === 'fulfilled') {
@@ -68,7 +95,14 @@ router.get('/', async (req: Request, res: Response) => {
     console.error('[dashboard] Search Console error for tenant', tenantId, ':', brandResult.reason);
   }
 
-  const response = { ads, website, brand, social: {} };
+  let social = DEFAULT_SOCIAL;
+  if (metaSocialResult.status === 'fulfilled') {
+    social = metaSocialResult.value;
+  } else {
+    console.error('[dashboard] Meta Social error for tenant', tenantId, ':', (metaSocialResult as PromiseRejectedResult).reason);
+  }
+
+  const response = { ads, website, brand, social };
 
   // Cache result with 24-hour expiry
   try {
