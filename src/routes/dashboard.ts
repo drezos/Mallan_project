@@ -16,30 +16,7 @@ const DEFAULT_WEBSITE = { sessions: 0, users: 0, newUsers: 0, bounceRate: 0, top
 const DEFAULT_BRAND = { impressions: 0, clicks: 0, avgPosition: 0, topQueries: [] as any[] };
 const DEFAULT_SOCIAL = { reach: 0, impressions: 0, engagementRate: 0, followerGrowth: 0, platforms: { facebook: { impressions: 0, engagedUsers: 0, fans: 0 }, instagram: { impressions: 0, reach: 0, followerCount: 0 } } };
 
-router.get('/', async (req: Request, res: Response) => {
-  const tenantId = req.query.tenant_id as string;
-
-  if (!tenantId) {
-    return res.status(400).json({ error: 'tenant_id query parameter is required' });
-  }
-
-  // Check tenant cache first
-  try {
-    const cached = await pool.query(
-      `SELECT data, expires_at, (expires_at < NOW()) as is_expired
-       FROM tenant_cache
-       WHERE tenant_id = $1 AND cache_key = $2`,
-      [tenantId, CACHE_KEY]
-    );
-
-    if (cached.rows.length > 0 && !cached.rows[0].is_expired) {
-      console.log(`[dashboard] Serving cached data for tenant ${tenantId}`);
-      return res.json(cached.rows[0].data);
-    }
-  } catch (err) {
-    console.error('[dashboard] Cache read error:', err);
-  }
-
+async function fetchFreshDashboardData(tenantId: string) {
   // Fetch all five sources in parallel — if one fails, others still return data
   const [websiteResult, adsResult, brandResult, metaAdsResult, metaSocialResult] = await Promise.allSettled([
     getGa4Metrics(tenantId),
@@ -102,18 +79,79 @@ router.get('/', async (req: Request, res: Response) => {
     console.error('[dashboard] Meta Social error for tenant', tenantId, ':', (metaSocialResult as PromiseRejectedResult).reason);
   }
 
-  const response = { ads, website, brand, social };
+  return { ads, website, brand, social };
+}
+
+async function writeDashboardCache(tenantId: string, data: object) {
+  const expiresAt = new Date(Date.now() + CACHE_DURATION_MS);
+  await pool.query(
+    `INSERT INTO tenant_cache (tenant_id, cache_key, data, expires_at)
+     VALUES ($1, $2, $3, $4)
+     ON CONFLICT (tenant_id, cache_key)
+     DO UPDATE SET data = $3, expires_at = $4, created_at = NOW()`,
+    [tenantId, CACHE_KEY, JSON.stringify(data), expiresAt]
+  );
+}
+
+router.get('/', async (req: Request, res: Response) => {
+  const tenantId = req.query.tenant_id as string;
+
+  if (!tenantId) {
+    return res.status(400).json({ error: 'tenant_id query parameter is required' });
+  }
+
+  // Check tenant cache first
+  try {
+    const cached = await pool.query(
+      `SELECT data, expires_at, (expires_at < NOW()) as is_expired
+       FROM tenant_cache
+       WHERE tenant_id = $1 AND cache_key = $2`,
+      [tenantId, CACHE_KEY]
+    );
+
+    if (cached.rows.length > 0 && !cached.rows[0].is_expired) {
+      console.log(`[dashboard] Serving cached data for tenant ${tenantId}`);
+      return res.json(cached.rows[0].data);
+    }
+  } catch (err) {
+    console.error('[dashboard] Cache read error:', err);
+  }
+
+  const response = await fetchFreshDashboardData(tenantId);
 
   // Cache result with 24-hour expiry
   try {
-    const expiresAt = new Date(Date.now() + CACHE_DURATION_MS);
+    await writeDashboardCache(tenantId, response);
+  } catch (err) {
+    console.error('[dashboard] Cache write error:', err);
+  }
+
+  return res.json(response);
+});
+
+router.get('/refresh', async (req: Request, res: Response) => {
+  const tenantId = req.query.tenant_id as string;
+
+  if (!tenantId) {
+    return res.status(400).json({ error: 'tenant_id query parameter is required' });
+  }
+
+  // Delete cached entry so fresh data is fetched unconditionally
+  try {
     await pool.query(
-      `INSERT INTO tenant_cache (tenant_id, cache_key, data, expires_at)
-       VALUES ($1, $2, $3, $4)
-       ON CONFLICT (tenant_id, cache_key)
-       DO UPDATE SET data = $3, expires_at = $4, created_at = NOW()`,
-      [tenantId, CACHE_KEY, JSON.stringify(response), expiresAt]
+      `DELETE FROM tenant_cache WHERE tenant_id = $1 AND cache_key = $2`,
+      [tenantId, CACHE_KEY]
     );
+    console.log(`[dashboard] Cleared cache for tenant ${tenantId}`);
+  } catch (err) {
+    console.error('[dashboard] Cache delete error:', err);
+  }
+
+  const response = await fetchFreshDashboardData(tenantId);
+
+  // Re-populate cache with fresh data
+  try {
+    await writeDashboardCache(tenantId, response);
   } catch (err) {
     console.error('[dashboard] Cache write error:', err);
   }
