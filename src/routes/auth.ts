@@ -22,9 +22,6 @@ const META_SCOPES = [
   'ads_read',
   'pages_show_list',
   'pages_read_engagement',
-  'read_insights',
-  'instagram_basic',
-  'instagram_manage_insights',
 ];
 
 // Step 1: Send user to Google login page
