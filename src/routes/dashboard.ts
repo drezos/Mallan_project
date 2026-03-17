@@ -11,10 +11,10 @@ const router = Router();
 const CACHE_KEY = 'tenant_dashboard';
 const CACHE_DURATION_MS = 24 * 60 * 60 * 1000; // 24 hours
 
-const DEFAULT_ADS = { spend: 0, cpa: 0, roas: 0, conversions: 0, ctr: 0, googleAds: {} as Record<string, unknown>, metaAds: {} as Record<string, unknown> };
+const DEFAULT_ADS = { spend: 0, cpa: 0, roas: 0, conversions: 0, ctr: 0, clicks: 0, impressions: 0, google: { spend: 0, cpa: 0, roas: 0, conversions: 0, ctr: 0, clicks: 0, impressions: 0 }, meta: { spend: 0, cpa: 0, roas: 0, conversions: 0, ctr: 0, clicks: 0, impressions: 0 } };
 const DEFAULT_WEBSITE = { sessions: 0, users: 0, newUsers: 0, bounceRate: 0, topSources: [] as Array<{ source: string; sessions: number }> };
 const DEFAULT_BRAND = { impressions: 0, clicks: 0, avgPosition: 0, topQueries: [] as any[] };
-const DEFAULT_SOCIAL = { reach: 0, impressions: 0, engagementRate: 0, followerGrowth: 0, platforms: {} as Record<string, unknown> };
+const DEFAULT_SOCIAL = { reach: 0, impressions: 0, engagementRate: 0, followerGrowth: 0, platforms: { facebook: { impressions: 0, engagedUsers: 0, fans: 0 }, instagram: { impressions: 0, reach: 0, followerCount: 0 } } };
 
 router.get('/', async (req: Request, res: Response) => {
   const tenantId = req.query.tenant_id as string;
@@ -57,42 +57,34 @@ router.get('/', async (req: Request, res: Response) => {
     console.error('[dashboard] GA4 error for tenant', tenantId, ':', websiteResult.reason);
   }
 
-  const googleAds = adsResult.status === 'fulfilled' ? adsResult.value : null;
-  if (adsResult.status === 'rejected') {
-    console.error('[dashboard] Google Ads error for tenant', tenantId, ':', adsResult.reason);
-  }
+  const googleAds = adsResult.status === 'fulfilled'
+    ? adsResult.value
+    : (console.error('[dashboard] Google Ads error for tenant', tenantId, ':', (adsResult as PromiseRejectedResult).reason), DEFAULT_ADS.google);
 
-  const metaAds = metaAdsResult.status === 'fulfilled' ? metaAdsResult.value : null;
-  if (metaAdsResult.status === 'rejected') {
-    console.error('[dashboard] Meta Ads error for tenant', tenantId, ':', metaAdsResult.reason);
-  }
+  const metaAds = metaAdsResult.status === 'fulfilled'
+    ? metaAdsResult.value
+    : (console.error('[dashboard] Meta Ads error for tenant', tenantId, ':', (metaAdsResult as PromiseRejectedResult).reason), DEFAULT_ADS.meta);
 
-  const gSpend = googleAds?.spend ?? 0;
-  const gConversions = googleAds?.conversions ?? 0;
-  const gConversionsValue = gSpend > 0 && googleAds ? googleAds.roas * gSpend : 0;
-  const gClicks = googleAds?.clicks ?? 0;
-  const gImpressions = googleAds?.impressions ?? 0;
-
-  const mSpend = metaAds?.spend ?? 0;
-  const mConversions = metaAds?.conversions ?? 0;
-  const mConversionsValue = mSpend > 0 && metaAds ? metaAds.roas * mSpend : 0;
-  const mClicks = metaAds?.clicks ?? 0;
-  const mImpressions = metaAds?.impressions ?? 0;
-
-  const combinedSpend = gSpend + mSpend;
-  const combinedConversions = gConversions + mConversions;
-  const combinedConversionsValue = gConversionsValue + mConversionsValue;
-  const combinedClicks = gClicks + mClicks;
-  const combinedImpressions = gImpressions + mImpressions;
+  const combinedSpend = googleAds.spend + metaAds.spend;
+  const combinedConversions = googleAds.conversions + metaAds.conversions;
+  const combinedClicks = googleAds.clicks + metaAds.clicks;
+  const combinedImpressions = googleAds.impressions + metaAds.impressions;
+  const combinedCpa = combinedConversions > 0 ? combinedSpend / combinedConversions : 0;
+  const combinedRoas = combinedSpend > 0
+    ? (googleAds.roas * googleAds.spend + metaAds.roas * metaAds.spend) / combinedSpend
+    : 0;
+  const combinedCtr = combinedImpressions > 0 ? (combinedClicks / combinedImpressions) * 100 : 0;
 
   const ads = {
     spend: combinedSpend,
-    cpa: combinedConversions > 0 ? combinedSpend / combinedConversions : 0,
-    roas: combinedSpend > 0 ? combinedConversionsValue / combinedSpend : 0,
+    cpa: combinedCpa,
+    roas: combinedRoas,
     conversions: combinedConversions,
-    ctr: combinedImpressions > 0 ? (combinedClicks / combinedImpressions) * 100 : 0,
-    googleAds: googleAds ? { spend: gSpend, cpa: googleAds.cpa, roas: googleAds.roas, conversions: gConversions, ctr: googleAds.ctr, clicks: gClicks, impressions: gImpressions } : {},
-    metaAds: metaAds ? { spend: mSpend, cpa: metaAds.cpa, roas: metaAds.roas, conversions: mConversions, ctr: metaAds.ctr, clicks: mClicks, impressions: mImpressions } : {},
+    ctr: combinedCtr,
+    clicks: combinedClicks,
+    impressions: combinedImpressions,
+    google: googleAds,
+    meta: metaAds,
   };
 
   let brand = DEFAULT_BRAND;
@@ -105,10 +97,9 @@ router.get('/', async (req: Request, res: Response) => {
 
   let social = DEFAULT_SOCIAL;
   if (metaSocialResult.status === 'fulfilled') {
-    const s = metaSocialResult.value;
-    social = { reach: s.reach, impressions: s.impressions, engagementRate: s.engagementRate, followerGrowth: s.followerGrowth, platforms: s.platforms };
+    social = metaSocialResult.value;
   } else {
-    console.error('[dashboard] Meta Social error for tenant', tenantId, ':', metaSocialResult.reason);
+    console.error('[dashboard] Meta Social error for tenant', tenantId, ':', (metaSocialResult as PromiseRejectedResult).reason);
   }
 
   const response = { ads, website, brand, social };

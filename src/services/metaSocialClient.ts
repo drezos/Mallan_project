@@ -8,7 +8,18 @@ export interface MetaSocialMetrics {
   impressions: number;
   engagementRate: number;
   followerGrowth: number;
-  platforms: Record<string, unknown>;
+  platforms: {
+    facebook: {
+      impressions: number;
+      engagedUsers: number;
+      fans: number;
+    };
+    instagram: {
+      impressions: number;
+      reach: number;
+      followerCount: number;
+    };
+  };
 }
 
 const ZERO_METRICS: MetaSocialMetrics = {
@@ -16,8 +27,22 @@ const ZERO_METRICS: MetaSocialMetrics = {
   impressions: 0,
   engagementRate: 0,
   followerGrowth: 0,
-  platforms: {},
+  platforms: {
+    facebook: {
+      impressions: 0,
+      engagedUsers: 0,
+      fans: 0,
+    },
+    instagram: {
+      impressions: 0,
+      reach: 0,
+      followerCount: 0,
+    },
+  },
 };
+
+const PAGE_INSIGHTS_FIELDS = 'page_impressions,page_engaged_users,page_fans';
+const INSTAGRAM_INSIGHTS_FIELDS = 'impressions,reach,follower_count';
 
 export async function getMetaSocialMetrics(tenantId: string): Promise<MetaSocialMetrics> {
   let accessToken: string;
@@ -28,11 +53,11 @@ export async function getMetaSocialMetrics(tenantId: string): Promise<MetaSocial
     return ZERO_METRICS;
   }
 
-  // Step 1: Get pages managed by the user
-  let pages: Array<{ id: string; name: string; access_token: string }>;
+  // Step 1: Get Facebook Pages
+  let pages: MetaPage[];
   try {
     const response = await fetch(
-      `${META_GRAPH_BASE_URL}/me/accounts?fields=id,name,access_token&access_token=${accessToken}`
+      `${META_GRAPH_BASE_URL}/me/accounts?fields=id,name,instagram_business_account&access_token=${accessToken}`
     );
 
     if (!response.ok) {
@@ -52,92 +77,114 @@ export async function getMetaSocialMetrics(tenantId: string): Promise<MetaSocial
     return ZERO_METRICS;
   }
 
-  // Step 2: Fetch insights for each page (last 7 days)
-  let totalReach = 0;
-  let totalImpressions = 0;
-  let totalEngagedUsers = 0;
-  let totalFollowerGrowth = 0;
-  const platforms: Record<string, unknown> = {};
+  // Step 2: Fetch insights for each page (and connected Instagram account)
+  let fbImpressions = 0;
+  let fbEngagedUsers = 0;
+  let fbFans = 0;
+  let igImpressions = 0;
+  let igReach = 0;
+  let igFollowerCount = 0;
 
   for (const page of pages) {
-    const pageToken = page.access_token;
+    // Facebook Page insights
     try {
-      const insightMetrics = 'page_impressions,page_reach,page_engaged_users,page_fan_adds_unique';
       const response = await fetch(
         `${META_GRAPH_BASE_URL}/${page.id}/insights` +
-          `?metric=${insightMetrics}` +
-          `&period=week` +
-          `&access_token=${pageToken}`
+          `?metric=${PAGE_INSIGHTS_FIELDS}` +
+          `&period=day` +
+          `&date_preset=last_7d` +
+          `&access_token=${accessToken}`
       );
 
       if (!response.ok) {
         const error = await response.text();
-        console.error(`[metaSocialClient] Insights error for page ${page.id} (tenant ${tenantId}): ${response.status} ${error}`);
-        continue;
-      }
-
-      const data = await response.json() as MetaPageInsightsResponse;
-
-      let pageReach = 0;
-      let pageImpressions = 0;
-      let pageEngagedUsers = 0;
-      let pageFollowerGrowth = 0;
-
-      for (const metric of data.data ?? []) {
-        const latestValue = metric.values?.[metric.values.length - 1]?.value ?? 0;
-        const val = typeof latestValue === 'number' ? latestValue : 0;
-        switch (metric.name) {
-          case 'page_reach':
-            pageReach = val;
-            break;
-          case 'page_impressions':
-            pageImpressions = val;
-            break;
-          case 'page_engaged_users':
-            pageEngagedUsers = val;
-            break;
-          case 'page_fan_adds_unique':
-            pageFollowerGrowth = val;
-            break;
+        console.error(`[metaSocialClient] Page insights error for page ${page.id} (tenant ${tenantId}): ${response.status} ${error}`);
+      } else {
+        const data = await response.json() as MetaPageInsightsResponse;
+        for (const metric of data.data ?? []) {
+          const total = sumInsightValues(metric.values ?? []);
+          if (metric.name === 'page_impressions') fbImpressions += total;
+          if (metric.name === 'page_engaged_users') fbEngagedUsers += total;
+          if (metric.name === 'page_fans') fbFans += total;
         }
       }
-
-      totalReach += pageReach;
-      totalImpressions += pageImpressions;
-      totalEngagedUsers += pageEngagedUsers;
-      totalFollowerGrowth += pageFollowerGrowth;
-
-      platforms[page.name] = {
-        pageId: page.id,
-        reach: pageReach,
-        impressions: pageImpressions,
-        engagedUsers: pageEngagedUsers,
-        followerGrowth: pageFollowerGrowth,
-      };
     } catch (err) {
-      console.error(`[metaSocialClient] Unexpected error fetching insights for page ${page.id} (tenant ${tenantId}):`, err);
+      console.error(`[metaSocialClient] Unexpected error fetching page insights for page ${page.id} (tenant ${tenantId}):`, err);
+    }
+
+    // Instagram Business Account insights (if connected)
+    const igAccountId = page.instagram_business_account?.id;
+    if (igAccountId) {
+      try {
+        const response = await fetch(
+          `${META_GRAPH_BASE_URL}/${igAccountId}/insights` +
+            `?metric=${INSTAGRAM_INSIGHTS_FIELDS}` +
+            `&period=day` +
+            `&date_preset=last_7d` +
+            `&access_token=${accessToken}`
+        );
+
+        if (!response.ok) {
+          const error = await response.text();
+          console.error(`[metaSocialClient] Instagram insights error for account ${igAccountId} (tenant ${tenantId}): ${response.status} ${error}`);
+        } else {
+          const data = await response.json() as MetaPageInsightsResponse;
+          for (const metric of data.data ?? []) {
+            const total = sumInsightValues(metric.values ?? []);
+            if (metric.name === 'impressions') igImpressions += total;
+            if (metric.name === 'reach') igReach += total;
+            if (metric.name === 'follower_count') igFollowerCount += total;
+          }
+        }
+      } catch (err) {
+        console.error(`[metaSocialClient] Unexpected error fetching Instagram insights for account ${igAccountId} (tenant ${tenantId}):`, err);
+      }
     }
   }
 
-  const engagementRate = totalReach > 0 ? (totalEngagedUsers / totalReach) * 100 : 0;
+  const totalImpressions = fbImpressions + igImpressions;
+  const totalReach = igReach + fbFans; // fans as a proxy for FB reach baseline
+  const totalFollowers = fbFans + igFollowerCount;
+  const engagementRate = totalFollowers > 0 ? (fbEngagedUsers / totalFollowers) * 100 : 0;
 
   return {
     reach: totalReach,
     impressions: totalImpressions,
     engagementRate,
-    followerGrowth: totalFollowerGrowth,
-    platforms,
+    followerGrowth: totalFollowers,
+    platforms: {
+      facebook: {
+        impressions: fbImpressions,
+        engagedUsers: fbEngagedUsers,
+        fans: fbFans,
+      },
+      instagram: {
+        impressions: igImpressions,
+        reach: igReach,
+        followerCount: igFollowerCount,
+      },
+    },
   };
 }
 
+function sumInsightValues(values: Array<{ value?: number }>): number {
+  return values.reduce((sum, v) => sum + (v.value ?? 0), 0);
+}
+
 // Internal types for Meta Graph API responses
+interface MetaPage {
+  id: string;
+  name?: string;
+  instagram_business_account?: { id: string };
+}
+
 interface MetaPagesResponse {
-  data?: Array<{ id: string; name: string; access_token: string }>;
+  data?: MetaPage[];
 }
 
 interface MetaPageInsightsResponse {
   data?: Array<{
     name: string;
-    values?: Array<{ value: number | Record<string, number>; end_time: string }>;
+    values?: Array<{ value?: number; end_time?: string }>;
   }>;
 }
