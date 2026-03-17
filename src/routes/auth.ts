@@ -164,7 +164,7 @@ router.get('/callback/meta', async (req: Request, res: Response) => {
 
     console.log(`✅ Meta long-lived token saved to tenant_connections for tenant ${tenant_id}`);
 
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const frontendUrl = process.env.FRONTEND_URL || 'https://mallan-project.vercel.app';
     res.redirect(`${frontendUrl}/dashboard?connected=meta`);
 
   } catch (error) {
