@@ -107,6 +107,7 @@ router.get('/connect/meta', (req: Request, res: Response) => {
     scope: META_SCOPES.join(','),
     state: tenant_id as string,
     response_type: 'code',
+    auth_type: 'rerequest',
   });
 
   res.redirect(`https://www.facebook.com/v19.0/dialog/oauth?${params.toString()}`);
