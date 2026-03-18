@@ -300,11 +300,16 @@ debugRouter.get('/meta-pages', async (req: Request, res: Response) => {
 
   const accessToken: string = result.rows[0].access_token;
 
-  const fbRes = await axios.get('https://graph.facebook.com/v19.0/me/accounts', {
-    params: { fields: 'id,name,access_token', access_token: accessToken },
-  });
+  const [pagesRes, permissionsRes] = await Promise.all([
+    axios.get('https://graph.facebook.com/v19.0/me/accounts', {
+      params: { fields: 'id,name,access_token', access_token: accessToken },
+    }),
+    axios.get('https://graph.facebook.com/v19.0/me/permissions', {
+      params: { access_token: accessToken },
+    }),
+  ]);
 
-  res.json(fbRes.data);
+  res.json({ pages: pagesRes.data, permissions: permissionsRes.data });
 });
 
 export { debugRouter };
