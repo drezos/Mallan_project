@@ -5,25 +5,30 @@ import { getGoogleAdsMetrics } from '../services/googleAdsClient';
 import { getSearchConsoleMetrics } from '../services/searchConsoleClient';
 import { getMetaAdsMetrics } from '../services/metaAdsClient';
 import { getMetaSocialMetrics } from '../services/metaSocialClient';
+import { getLinkedInAdsMetrics } from '../services/linkedinAdsClient';
+import { getLinkedInSocialMetrics } from '../services/linkedinSocialClient';
 
 const router = Router();
 
 const CACHE_KEY = 'tenant_dashboard';
 const CACHE_DURATION_MS = 24 * 60 * 60 * 1000; // 24 hours
 
-const DEFAULT_ADS = { spend: 0, cpa: 0, roas: 0, conversions: 0, ctr: 0, clicks: 0, impressions: 0, google: { spend: 0, cpa: 0, roas: 0, conversions: 0, ctr: 0, clicks: 0, impressions: 0 }, meta: { spend: 0, cpa: 0, roas: 0, conversions: 0, ctr: 0, clicks: 0, impressions: 0 } };
+const DEFAULT_ADS = { spend: 0, cpa: 0, roas: 0, conversions: 0, ctr: 0, clicks: 0, impressions: 0, google: { spend: 0, cpa: 0, roas: 0, conversions: 0, ctr: 0, clicks: 0, impressions: 0 }, meta: { spend: 0, cpa: 0, roas: 0, conversions: 0, ctr: 0, clicks: 0, impressions: 0 }, linkedin: { spend: 0, cpa: 0, roas: 0, conversions: 0, ctr: 0, clicks: 0, impressions: 0 } };
 const DEFAULT_WEBSITE = { sessions: 0, users: 0, newUsers: 0, bounceRate: 0, topSources: [] as Array<{ source: string; sessions: number }> };
 const DEFAULT_BRAND = { impressions: 0, clicks: 0, avgPosition: 0, topQueries: [] as any[] };
-const DEFAULT_SOCIAL = { reach: 0, impressions: 0, engagementRate: 0, followerGrowth: 0, platforms: { facebook: { impressions: 0, engagedUsers: 0, fans: 0 }, instagram: { impressions: 0, reach: 0, followerCount: 0 } } };
+const DEFAULT_SOCIAL = { reach: 0, impressions: 0, engagementRate: 0, followerGrowth: 0, platforms: { facebook: { impressions: 0, engagedUsers: 0, fans: 0 }, instagram: { impressions: 0, reach: 0, followerCount: 0 }, linkedin: { impressions: 0, reach: 0, engagementRate: 0, followerCount: 0 } } };
+const DEFAULT_LINKEDIN_SOCIAL = { impressions: 0, reach: 0, engagementRate: 0, followerCount: 0 };
 
 async function fetchFreshDashboardData(tenantId: string) {
-  // Fetch all five sources in parallel — if one fails, others still return data
-  const [websiteResult, adsResult, brandResult, metaAdsResult, metaSocialResult] = await Promise.allSettled([
+  // Fetch all sources in parallel — if one fails, others still return data
+  const [websiteResult, adsResult, brandResult, metaAdsResult, metaSocialResult, linkedinAdsResult, linkedinSocialResult] = await Promise.allSettled([
     getGa4Metrics(tenantId),
     getGoogleAdsMetrics(tenantId),
     getSearchConsoleMetrics(tenantId),
     getMetaAdsMetrics(tenantId),
     getMetaSocialMetrics(tenantId),
+    getLinkedInAdsMetrics(tenantId),
+    getLinkedInSocialMetrics(tenantId),
   ]);
 
   let website = DEFAULT_WEBSITE;
@@ -42,13 +47,17 @@ async function fetchFreshDashboardData(tenantId: string) {
     ? metaAdsResult.value
     : (console.error('[dashboard] Meta Ads error for tenant', tenantId, ':', (metaAdsResult as PromiseRejectedResult).reason), DEFAULT_ADS.meta);
 
-  const combinedSpend = googleAds.spend + metaAds.spend;
-  const combinedConversions = googleAds.conversions + metaAds.conversions;
-  const combinedClicks = googleAds.clicks + metaAds.clicks;
-  const combinedImpressions = googleAds.impressions + metaAds.impressions;
+  const linkedinAds = linkedinAdsResult.status === 'fulfilled'
+    ? linkedinAdsResult.value
+    : (console.error('[dashboard] LinkedIn Ads error for tenant', tenantId, ':', (linkedinAdsResult as PromiseRejectedResult).reason), DEFAULT_ADS.linkedin);
+
+  const combinedSpend = googleAds.spend + metaAds.spend + linkedinAds.spend;
+  const combinedConversions = googleAds.conversions + metaAds.conversions + linkedinAds.conversions;
+  const combinedClicks = googleAds.clicks + metaAds.clicks + linkedinAds.clicks;
+  const combinedImpressions = googleAds.impressions + metaAds.impressions + linkedinAds.impressions;
   const combinedCpa = combinedConversions > 0 ? combinedSpend / combinedConversions : 0;
   const combinedRoas = combinedSpend > 0
-    ? (googleAds.roas * googleAds.spend + metaAds.roas * metaAds.spend) / combinedSpend
+    ? (googleAds.roas * googleAds.spend + metaAds.roas * metaAds.spend + linkedinAds.roas * linkedinAds.spend) / combinedSpend
     : 0;
   const combinedCtr = combinedImpressions > 0 ? (combinedClicks / combinedImpressions) * 100 : 0;
 
@@ -62,6 +71,7 @@ async function fetchFreshDashboardData(tenantId: string) {
     impressions: combinedImpressions,
     google: googleAds,
     meta: metaAds,
+    linkedin: linkedinAds,
   };
 
   let brand = DEFAULT_BRAND;
@@ -72,12 +82,28 @@ async function fetchFreshDashboardData(tenantId: string) {
     console.error('[dashboard] Search Console error for tenant', tenantId, ':', brandResult.reason);
   }
 
-  let social = DEFAULT_SOCIAL;
-  if (metaSocialResult.status === 'fulfilled') {
-    social = metaSocialResult.value;
-  } else {
-    console.error('[dashboard] Meta Social error for tenant', tenantId, ':', (metaSocialResult as PromiseRejectedResult).reason);
-  }
+  const metaSocial = metaSocialResult.status === 'fulfilled'
+    ? metaSocialResult.value
+    : (console.error('[dashboard] Meta Social error for tenant', tenantId, ':', (metaSocialResult as PromiseRejectedResult).reason), DEFAULT_SOCIAL);
+
+  const linkedinSocial = linkedinSocialResult.status === 'fulfilled'
+    ? linkedinSocialResult.value
+    : (console.error('[dashboard] LinkedIn Social error for tenant', tenantId, ':', (linkedinSocialResult as PromiseRejectedResult).reason), DEFAULT_LINKEDIN_SOCIAL);
+
+  const social = {
+    ...metaSocial,
+    impressions: metaSocial.impressions + linkedinSocial.impressions,
+    reach: metaSocial.reach + linkedinSocial.reach,
+    platforms: {
+      ...metaSocial.platforms,
+      linkedin: {
+        impressions: linkedinSocial.impressions,
+        reach: linkedinSocial.reach,
+        engagementRate: linkedinSocial.engagementRate,
+        followerCount: linkedinSocial.followerCount,
+      },
+    },
+  };
 
   return { ads, website, brand, social };
 }
