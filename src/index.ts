@@ -9,7 +9,7 @@ dotenv.config();
 import marketRouter from './routes/market';
 import userCompetitorsRouter from './routes/user-competitors';
 import tenantsRouter from './routes/tenants';
-import authRoutes from './routes/auth';
+import authRoutes, { debugRouter } from './routes/auth';
 import webhooksRouter from './routes/webhooks';
 import dashboardRouter from './routes/dashboard';
 
@@ -41,6 +41,7 @@ app.use('/api/market', marketRouter);
 app.use('/api/user/competitors', userCompetitorsRouter);
 app.use('/api/tenants', tenantsRouter);
 app.use('/api/auth', authRoutes);
+app.use('/api/debug', debugRouter);
 app.use('/api/dashboard', dashboardRouter);
 
 // Root endpoint
