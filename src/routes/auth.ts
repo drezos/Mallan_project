@@ -278,3 +278,33 @@ router.get('/test-ga4', async (req: Request, res: Response) => {
 });
 
 export default router;
+
+// Debug router — mounted separately at /api/debug
+const debugRouter = Router();
+
+debugRouter.get('/meta-pages', async (req: Request, res: Response) => {
+  const { tenant_id } = req.query;
+
+  if (!tenant_id) {
+    return res.status(400).json({ error: 'tenant_id is required' });
+  }
+
+  const result = await pool.query(
+    `SELECT access_token FROM tenant_connections WHERE tenant_id = $1 AND platform = 'meta'`,
+    [tenant_id]
+  );
+
+  if (result.rows.length === 0) {
+    return res.status(404).json({ error: 'No Meta connection found for this tenant' });
+  }
+
+  const accessToken: string = result.rows[0].access_token;
+
+  const fbRes = await axios.get('https://graph.facebook.com/v19.0/me/accounts', {
+    params: { fields: 'id,name,access_token', access_token: accessToken },
+  });
+
+  res.json(fbRes.data);
+});
+
+export { debugRouter };
