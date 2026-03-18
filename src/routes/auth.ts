@@ -24,6 +24,13 @@ const META_SCOPES = [
   'pages_read_engagement',
 ];
 
+const LINKEDIN_SCOPES = [
+  'r_ads_reporting',
+  'r_ads',
+  'r_basicprofile',
+  'r_organization_social',
+];
+
 // Step 1: Send user to Google login page
 router.get('/connect/google', (req: Request, res: Response) => {
   const { tenant_id } = req.query;
@@ -170,6 +177,85 @@ router.get('/callback/meta', async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Meta OAuth error:', error instanceof Error ? error.stack : error);
     res.status(500).json({ error: 'Failed to exchange code for Meta tokens' });
+  }
+});
+
+// Step 1: Send user to LinkedIn login page
+router.get('/connect/linkedin', (req: Request, res: Response) => {
+  const { tenant_id } = req.query;
+
+  if (!tenant_id) {
+    return res.status(400).json({ error: 'tenant_id is required' });
+  }
+
+  const params = new URLSearchParams({
+    response_type: 'code',
+    client_id: process.env.LINKEDIN_CLIENT_ID || '',
+    redirect_uri: process.env.LINKEDIN_REDIRECT_URI || 'http://localhost:3000/api/auth/callback/linkedin',
+    scope: LINKEDIN_SCOPES.join(' '),
+    state: tenant_id as string,
+  });
+
+  res.redirect(`https://www.linkedin.com/oauth/v2/authorization?${params.toString()}`);
+});
+
+// Step 2: LinkedIn sends user back here with a code
+router.get('/callback/linkedin', async (req: Request, res: Response) => {
+  const { code, state: tenant_id, error: oauthError } = req.query;
+
+  if (oauthError) {
+    return res.status(400).json({ error: `LinkedIn OAuth error: ${oauthError}` });
+  }
+
+  if (!code) {
+    return res.status(400).json({ error: 'No code received from LinkedIn' });
+  }
+
+  if (!tenant_id) {
+    return res.status(400).json({ error: 'No tenant_id in OAuth state' });
+  }
+
+  try {
+    const redirectUri = process.env.LINKEDIN_REDIRECT_URI || 'http://localhost:3000/api/auth/callback/linkedin';
+
+    const tokenRes = await axios.post(
+      'https://www.linkedin.com/oauth/v2/accessToken',
+      new URLSearchParams({
+        grant_type: 'authorization_code',
+        code: code as string,
+        redirect_uri: redirectUri,
+        client_id: process.env.LINKEDIN_CLIENT_ID || '',
+        client_secret: process.env.LINKEDIN_CLIENT_SECRET || '',
+      }).toString(),
+      { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
+    );
+
+    const accessToken: string = tokenRes.data.access_token;
+    const expiresInSeconds: number = tokenRes.data.expires_in ?? 5184000;
+    const expiresAt = new Date(Date.now() + expiresInSeconds * 1000).toISOString();
+
+    console.log(`Upserting LinkedIn tokens for tenant_id: ${tenant_id}`);
+
+    await pool.query(
+      `INSERT INTO tenant_connections (tenant_id, platform, access_token, refresh_token, expires_at)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (tenant_id, platform)
+       DO UPDATE SET
+         access_token = EXCLUDED.access_token,
+         refresh_token = NULL,
+         expires_at = EXCLUDED.expires_at,
+         connected_at = NOW()`,
+      [tenant_id, 'linkedin', accessToken, null, expiresAt]
+    );
+
+    console.log(`✅ LinkedIn token saved to tenant_connections for tenant ${tenant_id}`);
+
+    const frontendUrl = process.env.FRONTEND_URL || 'https://mallan-project.vercel.app';
+    res.redirect(`${frontendUrl}/dashboard?connected=linkedin`);
+
+  } catch (error) {
+    console.error('LinkedIn OAuth error:', error instanceof Error ? error.stack : error);
+    res.status(500).json({ error: 'Failed to exchange code for LinkedIn token' });
   }
 });
 
