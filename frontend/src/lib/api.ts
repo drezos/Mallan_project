@@ -150,13 +150,21 @@ export interface DashboardResponse {
   };
 }
 
+export interface AdsPlatformMetrics {
+  spend: number;
+  cpa: number;
+  roas: number;
+  conversions: number;
+  ctr: number;
+  clicks: number;
+  impressions: number;
+}
+
 export interface AnalyticsDashboardResponse {
-  ads: {
-    spend: number;
-    cpa: number;
-    roas: number;
-    conversions: number;
-    ctr: number;
+  ads: AdsPlatformMetrics & {
+    google: AdsPlatformMetrics;
+    meta: AdsPlatformMetrics;
+    linkedin: AdsPlatformMetrics;
   };
   website: {
     sessions: number;
@@ -169,9 +177,15 @@ export interface AnalyticsDashboardResponse {
     impressions: number;
     clicks: number;
     avgPosition: number;
-    topQueries: Array<{ query: string; clicks: number; impressions: number }>;
+    topQueries: Array<{ query: string; clicks: number; impressions: number; position: number }>;
   };
-  social: Record<string, unknown>;
+  social: {
+    reach: number;
+    impressions: number;
+    engagementRate: number;
+    followerGrowth: number;
+    platforms?: Record<string, unknown>;
+  };
 }
 
 export const api = {
