@@ -237,10 +237,12 @@ interface PlatformCardProps {
   subtitle: string
   badges: string[]
   connected: boolean
+  tenantLoaded: boolean
   onConnect: () => void
 }
 
-function PlatformCard({ icon, title, subtitle, badges, connected, onConnect }: PlatformCardProps) {
+function PlatformCard({ icon, title, subtitle, badges, connected, tenantLoaded, onConnect }: PlatformCardProps) {
+  const isDisabled = connected || !tenantLoaded
   return (
     <div style={{ ...styles.card, display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
       <div>{icon}</div>
@@ -262,16 +264,16 @@ function PlatformCard({ icon, title, subtitle, badges, connected, onConnect }: P
         <button
           type="button"
           onClick={onConnect}
-          disabled={connected}
+          disabled={isDisabled}
           style={{
-            background: connected ? '#228B22' : '#FF8C00',
-            color: 'white',
+            background: connected ? '#228B22' : isDisabled ? '#D2B48C' : '#FF8C00',
+            color: connected || !isDisabled ? 'white' : '#8B7355',
             border: 'none',
             borderRadius: '8px',
             padding: '7px 16px',
             fontSize: '13px',
             fontWeight: 600,
-            cursor: connected ? 'default' : 'pointer',
+            cursor: isDisabled ? 'not-allowed' : 'pointer',
           }}
         >
           {connected ? 'Connected ✓' : 'Connect'}
@@ -321,8 +323,10 @@ function Step2({
   connections: ConnectionStatus
   tenantId: string
 }) {
+  const tenantLoaded = !!tenantId
+
   const handleConnect = (platform: string) => {
-    window.location.href = `${API_BASE_URL}/api/auth/connect/${platform}?tenant_id=${tenantId}`
+    window.location.href = `${import.meta.env.VITE_API_URL}/api/auth/connect/${platform}?tenant_id=${tenantId}`
   }
 
   const anyConnected = connections.google || connections.meta || connections.linkedin
@@ -335,6 +339,7 @@ function Step2({
         subtitle="Connects Google Ads, Analytics, and Search Console"
         badges={['Ads', 'Website', 'Brand']}
         connected={connections.google}
+        tenantLoaded={tenantLoaded}
         onConnect={() => handleConnect('google')}
       />
       <PlatformCard
@@ -343,6 +348,7 @@ function Step2({
         subtitle="Connects Meta Ads, Facebook, and Instagram"
         badges={['Ads', 'Social']}
         connected={connections.meta}
+        tenantLoaded={tenantLoaded}
         onConnect={() => handleConnect('meta')}
       />
       <PlatformCard
@@ -351,6 +357,7 @@ function Step2({
         subtitle="Connects LinkedIn Ads and LinkedIn Pages"
         badges={['Ads', 'Social']}
         connected={connections.linkedin}
+        tenantLoaded={tenantLoaded}
         onConnect={() => handleConnect('linkedin')}
       />
       {!anyConnected && (
@@ -558,6 +565,10 @@ export function Onboarding() {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const tenantId = searchParams.get('tenant') || ''
+
+  useEffect(() => {
+    console.log('tenant_id:', tenantId)
+  }, [tenantId])
 
   const [step, setStep] = useState(1)
   const [saving, setSaving] = useState(false)
