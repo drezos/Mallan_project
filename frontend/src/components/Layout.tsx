@@ -1,7 +1,6 @@
 import { Outlet, NavLink, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard,
-  Users,
   Bell,
   ChevronRight
 } from 'lucide-react'
@@ -10,7 +9,6 @@ import { cn } from '../lib/utils'
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
-  { name: 'Competitors', href: '/competitors', icon: Users },
 ]
 
 export function Layout() {
