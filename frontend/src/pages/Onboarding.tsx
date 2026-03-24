@@ -1,556 +1,805 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { ChevronLeft, ChevronRight, Check, Loader2, Plus, Trash2, AlertCircle } from 'lucide-react'
+import { useState, useEffect, useCallback } from 'react'
+import { useSearchParams, useNavigate } from 'react-router-dom'
+import { Check, Loader2 } from 'lucide-react'
 
-const API_BASE_URL = 'https://mallanproject-production.up.railway.app'
-
-interface Competitor {
-  id: number
-  name: string
-  url: string
-  keywords: string
-}
-
-interface MarketKeyword {
-  id: number
-  keyword: string
-  category: string
-}
-
-const REGIONS = [
-  { code: 2528, name: 'Netherlands' },
-  { code: 2470, name: 'Malta' },
-  { code: 2826, name: 'United Kingdom' },
-  { code: 2276, name: 'Germany' },
-]
-
-const CATEGORIES = [
-  { value: '', label: 'Select category (optional)' },
-  { value: 'comparison', label: 'Comparison' },
-  { value: 'problem', label: 'Problem' },
-  { value: 'product', label: 'Product' },
-  { value: 'regulation', label: 'Regulation' },
-  { value: 'review', label: 'Review' },
-]
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://mallanproject-production.up.railway.app'
 
 const STEPS = [
-  { number: 1, title: 'Your Brand' },
-  { number: 2, title: 'Brand Keywords' },
-  { number: 3, title: 'Competitors' },
-  { number: 4, title: 'Market Keywords' },
+  { number: 1, label: 'Get Started' },
+  { number: 2, label: 'Connect' },
+  { number: 3, label: 'Stakeholders' },
+  { number: 4, label: 'Schedule' },
 ]
 
-// Combined form state interface
-interface FormData {
-  // Step 1: Brand info
-  brandName: string
-  brandUrl: string
-  regionCode: number | null
-  regionName: string
-  // Step 2: Brand keywords
-  brandKeywords: string
-  // Step 3: Competitors
-  competitors: Competitor[]
-  // Step 4: Market keywords
-  marketKeywords: MarketKeyword[]
+const NORTH_STAR_OPTIONS = [
+  { emoji: '📢', label: 'Brand Awareness', description: 'Grow visibility and reach', value: 'brand_awareness' },
+  { emoji: '💬', label: 'Engagement', description: 'Drive interaction and community', value: 'engagement' },
+  { emoji: '🎯', label: 'Lead Generation', description: 'Capture leads and signups', value: 'lead_generation' },
+  { emoji: '💰', label: 'Drive Sales', description: 'Maximise revenue and ROAS', value: 'drive_sales' },
+]
+
+const VIEW_TYPE_DESCRIPTIONS: Record<string, string> = {
+  finance: 'Spend, budget %, CPA, conversions',
+  management: 'ROAS, leads, CAC trend, top channel',
+  internal: 'Everything — full dashboard access',
 }
 
-const initialFormData: FormData = {
-  brandName: '',
-  brandUrl: '',
-  regionCode: null,
-  regionName: '',
-  brandKeywords: '',
-  competitors: [{ id: 1, name: '', url: '', keywords: '' }],
-  marketKeywords: [{ id: 1, keyword: '', category: '' }],
+interface Stakeholder {
+  id: number
+  name: string
+  email: string
+  view_type: string
 }
+
+interface ConnectionStatus {
+  google: boolean
+  meta: boolean
+  linkedin: boolean
+}
+
+// ─── Shared styles ──────────────────────────────────────────────────────────
+
+const styles = {
+  page: {
+    minHeight: '100vh',
+    background: '#F5F5DC',
+    padding: '32px 16px',
+    fontFamily: 'system-ui, -apple-system, sans-serif',
+  } as React.CSSProperties,
+  container: {
+    maxWidth: '700px',
+    margin: '0 auto',
+  } as React.CSSProperties,
+  heading: {
+    fontFamily: 'Comfortaa, cursive',
+    color: '#4A2C2A',
+    fontSize: '28px',
+    fontWeight: 700,
+    margin: 0,
+  } as React.CSSProperties,
+  subtext: {
+    color: '#8B7355',
+    fontSize: '14px',
+    marginTop: '6px',
+    lineHeight: 1.5,
+  } as React.CSSProperties,
+  card: {
+    background: 'white',
+    borderRadius: '12px',
+    boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+    padding: '28px',
+  } as React.CSSProperties,
+  label: {
+    display: 'block',
+    fontWeight: 600,
+    color: '#4A2C2A',
+    fontSize: '14px',
+    marginBottom: '4px',
+  } as React.CSSProperties,
+  helperText: {
+    color: '#8B7355',
+    fontSize: '12px',
+    marginBottom: '8px',
+  } as React.CSSProperties,
+  input: {
+    width: '100%',
+    padding: '10px 14px',
+    border: '1px solid #D2B48C',
+    borderRadius: '8px',
+    fontSize: '14px',
+    color: '#4A2C2A',
+    background: 'white',
+    outline: 'none',
+    boxSizing: 'border-box',
+  } as React.CSSProperties,
+  btnPrimary: {
+    background: '#FF8C00',
+    color: 'white',
+    border: 'none',
+    borderRadius: '8px',
+    padding: '10px 24px',
+    fontSize: '15px',
+    fontWeight: 600,
+    cursor: 'pointer',
+  } as React.CSSProperties,
+  btnPrimaryDisabled: {
+    background: '#D2B48C',
+    color: '#8B7355',
+    border: 'none',
+    borderRadius: '8px',
+    padding: '10px 24px',
+    fontSize: '15px',
+    fontWeight: 600,
+    cursor: 'not-allowed',
+  } as React.CSSProperties,
+  btnBack: {
+    background: 'none',
+    border: 'none',
+    color: '#8B7355',
+    fontSize: '14px',
+    cursor: 'pointer',
+    padding: '8px 0',
+  } as React.CSSProperties,
+}
+
+// ─── Step Indicator ─────────────────────────────────────────────────────────
+
+function StepIndicator({ current }: { current: number }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '28px' }}>
+      {STEPS.map((step, idx) => {
+        const isCompleted = current > step.number
+        const isActive = current === step.number
+        return (
+          <div key={step.number} style={{ display: 'flex', alignItems: 'center' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              <div style={{
+                width: '36px',
+                height: '36px',
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontWeight: 700,
+                fontSize: '14px',
+                background: isCompleted ? '#228B22' : isActive ? '#8B4513' : '#D2B48C',
+                color: (isCompleted || isActive) ? 'white' : '#8B7355',
+              }}>
+                {isCompleted ? <Check size={16} strokeWidth={3} /> : step.number}
+              </div>
+              <span style={{
+                fontSize: '11px',
+                marginTop: '4px',
+                fontWeight: isActive ? 700 : 400,
+                color: isActive ? '#8B4513' : isCompleted ? '#228B22' : '#8B7355',
+                whiteSpace: 'nowrap',
+              }}>
+                {step.label}
+              </span>
+            </div>
+            {idx < STEPS.length - 1 && (
+              <div style={{
+                width: '60px',
+                height: '2px',
+                margin: '0 8px',
+                marginBottom: '20px',
+                background: current > step.number ? '#228B22' : '#D2B48C',
+              }} />
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// ─── Step 1: Get Started ────────────────────────────────────────────────────
+
+function Step1({
+  brandUrl, setBrandUrl,
+  northStar, setNorthStar,
+}: {
+  brandUrl: string; setBrandUrl: (v: string) => void
+  northStar: string; setNorthStar: (v: string) => void
+}) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      <div>
+        <label style={styles.label}>What's your website?</label>
+        <p style={styles.helperText}>We'll use this to identify your brand across platforms</p>
+        <input
+          type="text"
+          value={brandUrl}
+          onChange={e => setBrandUrl(e.target.value)}
+          placeholder="https://yourcompany.com"
+          style={styles.input}
+          onFocus={e => (e.target.style.borderColor = '#8B4513')}
+          onBlur={e => (e.target.style.borderColor = '#D2B48C')}
+        />
+      </div>
+
+      <div>
+        <label style={styles.label}>What's your main marketing goal?</label>
+        <p style={styles.helperText}>This sets your headline metric on the dashboard. You can change it anytime.</p>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+          {NORTH_STAR_OPTIONS.map(opt => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => setNorthStar(opt.value)}
+              style={{
+                background: 'white',
+                border: `2px solid ${northStar === opt.value ? '#8B4513' : '#D2B48C'}`,
+                borderRadius: '10px',
+                padding: '14px',
+                cursor: 'pointer',
+                textAlign: 'left',
+              }}
+            >
+              <div style={{ fontSize: '22px', marginBottom: '6px' }}>{opt.emoji}</div>
+              <div style={{ fontWeight: 700, color: '#4A2C2A', fontSize: '13px', marginBottom: '2px' }}>
+                {opt.label}
+              </div>
+              <div style={{ color: '#8B7355', fontSize: '12px' }}>{opt.description}</div>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Step 2: Connect Platforms ──────────────────────────────────────────────
+
+interface PlatformCardProps {
+  icon: React.ReactNode
+  title: string
+  subtitle: string
+  badges: string[]
+  connected: boolean
+  onConnect: () => void
+}
+
+function PlatformCard({ icon, title, subtitle, badges, connected, onConnect }: PlatformCardProps) {
+  return (
+    <div style={{ ...styles.card, display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
+      <div>{icon}</div>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontWeight: 700, color: '#4A2C2A', fontSize: '16px', marginBottom: '4px' }}>{title}</div>
+        <div style={{ color: '#8B7355', fontSize: '13px', marginBottom: '10px' }}>{subtitle}</div>
+        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '12px' }}>
+          {badges.map(b => (
+            <span key={b} style={{
+              background: '#D2B48C',
+              color: '#4A2C2A',
+              fontSize: '11px',
+              fontWeight: 600,
+              padding: '2px 8px',
+              borderRadius: '999px',
+            }}>{b}</span>
+          ))}
+        </div>
+        <button
+          type="button"
+          onClick={onConnect}
+          disabled={connected}
+          style={{
+            background: connected ? '#228B22' : '#FF8C00',
+            color: 'white',
+            border: 'none',
+            borderRadius: '8px',
+            padding: '7px 16px',
+            fontSize: '13px',
+            fontWeight: 600,
+            cursor: connected ? 'default' : 'pointer',
+          }}
+        >
+          {connected ? 'Connected ✓' : 'Connect'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function GoogleIcon() {
+  return (
+    <div style={{
+      width: '40px', height: '40px', borderRadius: '50%',
+      background: 'linear-gradient(135deg, #4285F4, #34A853)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      color: 'white', fontWeight: 900, fontSize: '16px', flexShrink: 0,
+    }}>G</div>
+  )
+}
+
+function MetaIcon() {
+  return (
+    <div style={{
+      width: '40px', height: '40px', borderRadius: '50%',
+      background: 'linear-gradient(135deg, #1877F2, #42B72A)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      color: 'white', fontWeight: 900, fontSize: '16px', flexShrink: 0,
+    }}>M</div>
+  )
+}
+
+function LinkedInIcon() {
+  return (
+    <div style={{
+      width: '40px', height: '40px', borderRadius: '50%',
+      background: '#0A66C2',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      color: 'white', fontWeight: 900, fontSize: '13px', flexShrink: 0,
+    }}>in</div>
+  )
+}
+
+function Step2({
+  connections,
+  tenantId,
+}: {
+  connections: ConnectionStatus
+  tenantId: string
+}) {
+  const handleConnect = (platform: string) => {
+    window.location.href = `${API_BASE_URL}/api/auth/connect/${platform}?tenant_id=${tenantId}`
+  }
+
+  const anyConnected = connections.google || connections.meta || connections.linkedin
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      <PlatformCard
+        icon={<GoogleIcon />}
+        title="Google"
+        subtitle="Connects Google Ads, Analytics, and Search Console"
+        badges={['Ads', 'Website', 'Brand']}
+        connected={connections.google}
+        onConnect={() => handleConnect('google')}
+      />
+      <PlatformCard
+        icon={<MetaIcon />}
+        title="Meta"
+        subtitle="Connects Meta Ads, Facebook, and Instagram"
+        badges={['Ads', 'Social']}
+        connected={connections.meta}
+        onConnect={() => handleConnect('meta')}
+      />
+      <PlatformCard
+        icon={<LinkedInIcon />}
+        title="LinkedIn"
+        subtitle="Connects LinkedIn Ads and LinkedIn Pages"
+        badges={['Ads', 'Social']}
+        connected={connections.linkedin}
+        onConnect={() => handleConnect('linkedin')}
+      />
+      {!anyConnected && (
+        <p style={{ color: '#8B7355', fontSize: '13px', textAlign: 'center', marginTop: '4px' }}>
+          Connect at least one platform to continue. You can always add more later.
+        </p>
+      )}
+    </div>
+  )
+}
+
+// ─── Step 3: Stakeholders ───────────────────────────────────────────────────
+
+function Step3({
+  stakeholders,
+  setStakeholders,
+}: {
+  stakeholders: Stakeholder[]
+  setStakeholders: (s: Stakeholder[]) => void
+}) {
+  const update = (id: number, field: keyof Stakeholder, value: string) => {
+    setStakeholders(stakeholders.map(s => s.id === id ? { ...s, [field]: value } : s))
+  }
+
+  const remove = (id: number) => {
+    if (stakeholders.length > 1) {
+      setStakeholders(stakeholders.filter(s => s.id !== id))
+    }
+  }
+
+  const add = () => {
+    if (stakeholders.length < 3) {
+      setStakeholders([...stakeholders, { id: Date.now(), name: '', email: '', view_type: 'internal' }])
+    }
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      {stakeholders.map((s, idx) => (
+        <div key={s.id} style={{ ...styles.card, padding: '20px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+            <span style={{ fontWeight: 700, color: '#4A2C2A', fontSize: '14px' }}>Stakeholder {idx + 1}</span>
+            {stakeholders.length > 1 && (
+              <button
+                type="button"
+                onClick={() => remove(s.id)}
+                style={{ background: 'none', border: 'none', color: '#8B7355', cursor: 'pointer', fontSize: '12px' }}
+              >
+                Remove
+              </button>
+            )}
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <input
+              type="text"
+              value={s.name}
+              onChange={e => update(s.id, 'name', e.target.value)}
+              placeholder="Name (e.g. Finance Director)"
+              style={styles.input}
+              onFocus={e => (e.target.style.borderColor = '#8B4513')}
+              onBlur={e => (e.target.style.borderColor = '#D2B48C')}
+            />
+            <input
+              type="email"
+              value={s.email}
+              onChange={e => update(s.id, 'email', e.target.value)}
+              placeholder="email@company.com"
+              style={styles.input}
+              onFocus={e => (e.target.style.borderColor = '#8B4513')}
+              onBlur={e => (e.target.style.borderColor = '#D2B48C')}
+            />
+            <select
+              value={s.view_type}
+              onChange={e => update(s.id, 'view_type', e.target.value)}
+              style={{ ...styles.input, cursor: 'pointer' }}
+              onFocus={e => (e.target.style.borderColor = '#8B4513')}
+              onBlur={e => (e.target.style.borderColor = '#D2B48C')}
+            >
+              <option value="finance">Finance</option>
+              <option value="management">Management</option>
+              <option value="internal">Internal</option>
+            </select>
+            <p style={{ color: '#8B7355', fontSize: '12px', margin: 0 }}>
+              {VIEW_TYPE_DESCRIPTIONS[s.view_type]}
+            </p>
+          </div>
+        </div>
+      ))}
+      {stakeholders.length < 3 && (
+        <button
+          type="button"
+          onClick={add}
+          style={{
+            background: 'none',
+            border: '2px dashed #D2B48C',
+            borderRadius: '10px',
+            padding: '12px',
+            color: '#8B7355',
+            fontSize: '13px',
+            cursor: 'pointer',
+            fontWeight: 600,
+          }}
+        >
+          + Add stakeholder
+        </button>
+      )}
+    </div>
+  )
+}
+
+// ─── Step 4: Schedule ───────────────────────────────────────────────────────
+
+const WEEKLY_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
+const MONTHLY_DAYS = ['1st of the month', '15th of the month']
+const TIME_OPTIONS = [
+  { label: 'Morning (8am)', value: '08:00' },
+  { label: 'Midday (12pm)', value: '12:00' },
+  { label: 'Afternoon (5pm)', value: '17:00' },
+]
+
+function Step4({
+  frequency, setFrequency,
+  day, setDay,
+  time, setTime,
+}: {
+  frequency: string; setFrequency: (v: string) => void
+  day: string; setDay: (v: string) => void
+  time: string; setTime: (v: string) => void
+}) {
+  const days = frequency === 'weekly' ? WEEKLY_DAYS : MONTHLY_DAYS
+
+  const timeLabel = TIME_OPTIONS.find(t => t.value === time)?.label ?? ''
+  const dayDisplay = frequency === 'weekly' ? `every ${day}` : `on the ${day}`
+  const timeDisplay = time === '08:00' ? '8:00 AM' : time === '12:00' ? '12:00 PM' : '5:00 PM'
+  const preview = `Your reports will be delivered ${dayDisplay} at ${timeDisplay}`
+
+  const optionBtn = (label: string, current: string, onClick: () => void) => (
+    <button
+      key={label}
+      type="button"
+      onClick={onClick}
+      style={{
+        padding: '8px 18px',
+        borderRadius: '8px',
+        border: `2px solid ${current === label.toLowerCase() || current === label ? '#8B4513' : '#D2B48C'}`,
+        background: (current === label.toLowerCase() || current === label) ? '#8B4513' : 'white',
+        color: (current === label.toLowerCase() || current === label) ? 'white' : '#4A2C2A',
+        fontWeight: 600,
+        fontSize: '13px',
+        cursor: 'pointer',
+      }}
+    >
+      {label}
+    </button>
+  )
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      <div>
+        <label style={styles.label}>Frequency</label>
+        <div style={{ display: 'flex', gap: '10px', marginTop: '8px' }}>
+          {optionBtn('Weekly', frequency, () => { setFrequency('weekly'); setDay('Monday') })}
+          {optionBtn('Monthly', frequency, () => { setFrequency('monthly'); setDay('1st of the month') })}
+        </div>
+      </div>
+
+      <div>
+        <label style={styles.label}>Delivery Day</label>
+        <select
+          value={day}
+          onChange={e => setDay(e.target.value)}
+          style={{ ...styles.input, marginTop: '8px', cursor: 'pointer' }}
+          onFocus={e => (e.target.style.borderColor = '#8B4513')}
+          onBlur={e => (e.target.style.borderColor = '#D2B48C')}
+        >
+          {days.map(d => <option key={d} value={d}>{d}</option>)}
+        </select>
+      </div>
+
+      <div>
+        <label style={styles.label}>Time</label>
+        <div style={{ display: 'flex', gap: '10px', marginTop: '8px', flexWrap: 'wrap' }}>
+          {TIME_OPTIONS.map(t => optionBtn(t.label, timeLabel, () => setTime(t.value)))}
+        </div>
+      </div>
+
+      <div style={{
+        background: '#FFF8F0',
+        border: '1px solid #D2B48C',
+        borderRadius: '10px',
+        padding: '14px 16px',
+        color: '#4A2C2A',
+        fontSize: '14px',
+        fontWeight: 500,
+      }}>
+        📅 {preview}
+      </div>
+    </div>
+  )
+}
+
+// ─── Main Onboarding Component ───────────────────────────────────────────────
 
 export function Onboarding() {
+  const [searchParams] = useSearchParams()
   const navigate = useNavigate()
-  const [currentStep, setCurrentStep] = useState(1)
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState(false)
+  const tenantId = searchParams.get('tenant') || ''
 
-  // Single state object for all form data - persists across all steps
-  const [formData, setFormData] = useState<FormData>(initialFormData)
+  const [step, setStep] = useState(1)
+  const [saving, setSaving] = useState(false)
+  const [loadingStatus, setLoadingStatus] = useState(true)
 
-  // Helper to update form data
-  const updateFormData = <K extends keyof FormData>(field: K, value: FormData[K]) => {
-    setFormData(prev => ({ ...prev, [field]: value }))
-  }
+  // Step 1 state
+  const [brandUrl, setBrandUrl] = useState('')
+  const [northStar, setNorthStar] = useState('lead_generation')
 
-  // Handle region selection - stores both code (as number) and name
-  const handleRegionChange = (value: string) => {
-    const code = value ? parseInt(value, 10) : null
-    const selectedRegion = REGIONS.find(r => r.code === code)
-    setFormData(prev => ({
-      ...prev,
-      regionCode: code,
-      regionName: selectedRegion?.name || ''
-    }))
-  }
+  // Step 2 state
+  const [connections, setConnections] = useState<ConnectionStatus>({ google: false, meta: false, linkedin: false })
+
+  // Step 3 state
+  const [stakeholders, setStakeholders] = useState<Stakeholder[]>([
+    { id: 1, name: 'Finance Director', email: '', view_type: 'finance' },
+    { id: 2, name: 'CEO / Management', email: '', view_type: 'management' },
+    { id: 3, name: 'Marketing (Self)', email: '', view_type: 'internal' },
+  ])
+
+  // Step 4 state
+  const [frequency, setFrequency] = useState('weekly')
+  const [day, setDay] = useState('Monday')
+  const [time, setTime] = useState('08:00')
+
+  const fetchStatus = useCallback(async () => {
+    if (!tenantId) return
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/onboarding/status?tenant_id=${tenantId}`)
+      if (res.ok) {
+        const data = await res.json()
+        setConnections(data.connections || { google: false, meta: false, linkedin: false })
+      }
+    } catch (_) {}
+  }, [tenantId])
+
+  // Load saved progress on mount
+  useEffect(() => {
+    if (!tenantId) { setLoadingStatus(false); return }
+
+    const loadProgress = async () => {
+      try {
+        const [statusRes, getStartedRes, stakeholdersRes, scheduleRes] = await Promise.allSettled([
+          fetch(`${API_BASE_URL}/api/onboarding/status?tenant_id=${tenantId}`),
+          fetch(`${API_BASE_URL}/api/onboarding/get-started?tenant_id=${tenantId}`),
+          fetch(`${API_BASE_URL}/api/onboarding/stakeholders?tenant_id=${tenantId}`),
+          fetch(`${API_BASE_URL}/api/onboarding/schedule?tenant_id=${tenantId}`),
+        ])
+
+        if (statusRes.status === 'fulfilled' && statusRes.value.ok) {
+          const data = await statusRes.value.json()
+          setConnections(data.connections || { google: false, meta: false, linkedin: false })
+        }
+
+        if (getStartedRes.status === 'fulfilled' && getStartedRes.value.ok) {
+          const data = await getStartedRes.value.json()
+          if (data.brand_url) setBrandUrl(data.brand_url)
+          if (data.north_star_focus) setNorthStar(data.north_star_focus)
+        }
+
+        if (stakeholdersRes.status === 'fulfilled' && stakeholdersRes.value.ok) {
+          const data = await stakeholdersRes.value.json()
+          if (Array.isArray(data) && data.length > 0) {
+            setStakeholders(data.map((s: any, i: number) => ({
+              id: s.id || i + 1,
+              name: s.name || '',
+              email: s.email || '',
+              view_type: s.view_type || 'internal',
+            })))
+          } else {
+            // Load smart defaults
+            const defaultsRes = await fetch(`${API_BASE_URL}/api/onboarding/defaults`)
+            if (defaultsRes.ok) {
+              const defaults = await defaultsRes.json()
+              if (defaults.stakeholder_templates) {
+                setStakeholders(defaults.stakeholder_templates.map((t: any, i: number) => ({
+                  id: i + 1,
+                  name: t.name,
+                  email: '',
+                  view_type: t.view_type,
+                })))
+              }
+            }
+          }
+        }
+
+        if (scheduleRes.status === 'fulfilled' && scheduleRes.value.ok) {
+          const data = await scheduleRes.value.json()
+          if (data.report_frequency) setFrequency(data.report_frequency)
+          if (data.report_day) setDay(data.report_day)
+          if (data.report_time) setTime(data.report_time)
+        }
+      } finally {
+        setLoadingStatus(false)
+      }
+    }
+
+    loadProgress()
+  }, [tenantId])
+
+  // Re-fetch connection status when tab regains focus (user returns from OAuth)
+  useEffect(() => {
+    window.addEventListener('focus', fetchStatus)
+    return () => window.removeEventListener('focus', fetchStatus)
+  }, [fetchStatus])
 
   const canProceed = () => {
-    switch (currentStep) {
-      case 1:
-        return formData.brandName.trim() && formData.brandUrl.trim() && formData.regionCode
-      case 2:
-        return formData.brandKeywords.trim().split('\n').filter(k => k.trim()).length >= 1
-      case 3:
-        return formData.competitors.some(c => c.name.trim())
-      case 4:
-        return true // Market keywords are optional
-      default:
-        return false
-    }
+    if (step === 1) return brandUrl.trim().length > 0
+    if (step === 2) return connections.google || connections.meta || connections.linkedin
+    if (step === 3) return stakeholders.some(s => s.name.trim().length > 0)
+    return true
   }
 
-  const nextStep = () => {
-    if (currentStep < 4 && canProceed()) {
-      setCurrentStep(currentStep + 1)
-      setError(null)
-    }
-  }
-
-  const prevStep = () => {
-    if (currentStep > 1) {
-      setCurrentStep(currentStep - 1)
-      setError(null)
-    }
-  }
-
-  const addCompetitor = () => {
-    if (formData.competitors.length < 10) {
-      updateFormData('competitors', [...formData.competitors, { id: Date.now(), name: '', url: '', keywords: '' }])
-    }
-  }
-
-  const removeCompetitor = (id: number) => {
-    if (formData.competitors.length > 1) {
-      updateFormData('competitors', formData.competitors.filter(c => c.id !== id))
-    }
-  }
-
-  const updateCompetitor = (id: number, field: keyof Competitor, value: string) => {
-    updateFormData('competitors', formData.competitors.map(c =>
-      c.id === id ? { ...c, [field]: value } : c
-    ))
-  }
-
-  const addMarketKeyword = () => {
-    updateFormData('marketKeywords', [...formData.marketKeywords, { id: Date.now(), keyword: '', category: '' }])
-  }
-
-  const removeMarketKeyword = (id: number) => {
-    if (formData.marketKeywords.length > 1) {
-      updateFormData('marketKeywords', formData.marketKeywords.filter(k => k.id !== id))
-    }
-  }
-
-  const updateMarketKeyword = (id: number, field: keyof MarketKeyword, value: string) => {
-    updateFormData('marketKeywords', formData.marketKeywords.map(k =>
-      k.id === id ? { ...k, [field]: value } : k
-    ))
-  }
-
-  const handleSubmit = async (e?: React.MouseEvent<HTMLButtonElement> | React.FormEvent) => {
-    if (e) {
-      e.preventDefault()
-    }
-    setIsSubmitting(true)
-    setError(null)
-
-    // Build payload from combined formData state - matches API expectations
-    const payload = {
-      brandName: formData.brandName.trim(),
-      brandUrl: formData.brandUrl.trim(),
-      regionCode: formData.regionCode,
-      regionName: formData.regionName,
-      brandKeywords: formData.brandKeywords
-        .split('\n')
-        .map(k => k.trim())
-        .filter(k => k),
-      competitors: formData.competitors
-        .filter(c => c.name.trim())
-        .map(c => ({
-          name: c.name.trim(),
-          url: c.url.trim(),
-          keywords: c.keywords
-            .split('\n')
-            .map(k => k.trim())
-            .filter(k => k),
-        })),
-      marketKeywords: formData.marketKeywords
-        .filter(k => k.keyword.trim())
-        .map(k => ({
-          keyword: k.keyword.trim(),
-          category: k.category || null,
-        })),
-    }
-
+  const handleNext = async () => {
+    if (!canProceed()) return
+    setSaving(true)
     try {
-      const response = await fetch(`${API_BASE_URL}/api/tenants/create`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}))
-        throw new Error(data.error || `HTTP ${response.status}`)
+      if (step === 1) {
+        let url = brandUrl.trim()
+        if (url && !url.startsWith('http://') && !url.startsWith('https://')) {
+          url = 'https://' + url
+          setBrandUrl(url)
+        }
+        await fetch(`${API_BASE_URL}/api/onboarding/get-started`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tenant_id: tenantId, brand_url: url, north_star_focus: northStar }),
+        })
+        setStep(2)
+      } else if (step === 2) {
+        setStep(3)
+      } else if (step === 3) {
+        const validStakeholders = stakeholders.filter(s => s.name.trim())
+        await fetch(`${API_BASE_URL}/api/onboarding/stakeholders`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            tenant_id: tenantId,
+            stakeholders: validStakeholders.map(s => ({
+              name: s.name,
+              email: s.email || null,
+              view_type: s.view_type,
+              metrics_visible: [],
+            })),
+          }),
+        })
+        setStep(4)
+      } else if (step === 4) {
+        await fetch(`${API_BASE_URL}/api/onboarding/schedule`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            tenant_id: tenantId,
+            report_frequency: frequency,
+            report_day: day,
+            report_time: time,
+          }),
+        })
+        navigate(`/?tenant=${tenantId}`)
       }
-
-      setSuccess(true)
-      setTimeout(() => {
-        navigate('/')
-      }, 2000)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create tenant')
     } finally {
-      setIsSubmitting(false)
+      setSaving(false)
     }
   }
 
-  if (success) {
+  if (loadingStatus) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
-        <div className="bg-white rounded-xl shadow-lg p-8 max-w-md w-full text-center">
-          <div className="w-16 h-16 bg-forest-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Check className="w-8 h-8 text-forest-600" />
-          </div>
-          <h2 className="text-2xl font-semibold text-slate-900 mb-2">Welcome aboard!</h2>
-          <p className="text-slate-600">Your account has been created. Redirecting to dashboard...</p>
-        </div>
+      <div style={{ ...styles.page, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Loader2 size={32} style={{ color: '#8B4513', animation: 'spin 1s linear infinite' }} />
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 py-8 px-4">
-      <div className="max-w-2xl mx-auto">
+    <div style={styles.page}>
+      <div style={styles.container}>
         {/* Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-slate-900 mb-2">Set up your account</h1>
-          <p className="text-slate-600">Let's get your brand tracking configured</p>
+        <div style={{ textAlign: 'center', marginBottom: '32px' }}>
+          <h1 style={styles.heading}>Let's set up your dashboard</h1>
+          <p style={styles.subtext}>
+            This takes about 2 minutes. Tell us about your business, connect your platforms, and you're ready to go.
+          </p>
         </div>
 
-        {/* Progress Steps */}
-        <div className="flex items-center justify-center mb-8">
-          {STEPS.map((step, index) => (
-            <div key={step.number} className="flex items-center">
-              <div className="flex flex-col items-center">
-                <div
-                  className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium transition-colors ${
-                    currentStep > step.number
-                      ? 'bg-forest-600 text-white'
-                      : currentStep === step.number
-                      ? 'bg-forest-600 text-white'
-                      : 'bg-slate-200 text-slate-500'
-                  }`}
-                >
-                  {currentStep > step.number ? (
-                    <Check className="w-5 h-5" />
-                  ) : (
-                    step.number
-                  )}
-                </div>
-                <span className={`text-xs mt-1 ${
-                  currentStep >= step.number ? 'text-forest-600 font-medium' : 'text-slate-400'
-                }`}>
-                  {step.title}
-                </span>
-              </div>
-              {index < STEPS.length - 1 && (
-                <div className={`w-16 h-1 mx-2 rounded ${
-                  currentStep > step.number ? 'bg-forest-600' : 'bg-slate-200'
-                }`} />
-              )}
-            </div>
-          ))}
-        </div>
+        <StepIndicator current={step} />
 
-        {/* Error Message */}
-        {error && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center gap-3 text-red-700">
-            <AlertCircle className="w-5 h-5 flex-shrink-0" />
-            <span>{error}</span>
-          </div>
-        )}
-
-        {/* Form Card */}
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-          {/* Step 1: Your Brand */}
-          {currentStep === 1 && (
-            <div className="space-y-6">
-              <div>
-                <h2 className="text-xl font-semibold text-slate-900 mb-1">Your Brand</h2>
-                <p className="text-slate-500 text-sm">Tell us about your brand</p>
-              </div>
-
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">
-                    Brand Name
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.brandName}
-                    onChange={(e) => updateFormData('brandName', e.target.value)}
-                    placeholder="Your brand name"
-                    className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-forest-500 focus:border-transparent text-slate-900 placeholder-slate-400"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">
-                    Website URL
-                  </label>
-                  <input
-                    type="url"
-                    value={formData.brandUrl}
-                    onChange={(e) => updateFormData('brandUrl', e.target.value)}
-                    placeholder="https://yourbrand.com"
-                    className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-forest-500 focus:border-transparent text-slate-900 placeholder-slate-400"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">
-                    Region
-                  </label>
-                  <select
-                    value={formData.regionCode ?? ''}
-                    onChange={(e) => handleRegionChange(e.target.value)}
-                    className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-forest-500 focus:border-transparent text-slate-900 bg-white"
-                  >
-                    <option value="">Select a region</option>
-                    {REGIONS.map((r) => (
-                      <option key={r.code} value={r.code}>
-                        {r.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-            </div>
+        {/* Step content card */}
+        <div style={styles.card}>
+          {step === 1 && (
+            <Step1
+              brandUrl={brandUrl} setBrandUrl={setBrandUrl}
+              northStar={northStar} setNorthStar={setNorthStar}
+            />
+          )}
+          {step === 2 && (
+            <Step2 connections={connections} tenantId={tenantId} />
+          )}
+          {step === 3 && (
+            <Step3 stakeholders={stakeholders} setStakeholders={setStakeholders} />
+          )}
+          {step === 4 && (
+            <Step4
+              frequency={frequency} setFrequency={setFrequency}
+              day={day} setDay={setDay}
+              time={time} setTime={setTime}
+            />
           )}
 
-          {/* Step 2: Brand Keywords */}
-          {currentStep === 2 && (
-            <div className="space-y-6">
-              <div>
-                <h2 className="text-xl font-semibold text-slate-900 mb-1">Your Brand Keywords</h2>
-                <p className="text-slate-500 text-sm">Enter 5-10 keywords people search to find your brand</p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Keywords (one per line)
-                </label>
-                <textarea
-                  value={formData.brandKeywords}
-                  onChange={(e) => updateFormData('brandKeywords', e.target.value)}
-                  placeholder={`your brand name\nyourbrand.com\nyour brand online`}
-                  rows={8}
-                  className="w-full px-4 py-3 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-forest-500 focus:border-transparent text-slate-900 placeholder-slate-400 resize-none font-mono text-sm"
-                />
-                <p className="text-xs text-slate-400 mt-2">
-                  {formData.brandKeywords.split('\n').filter(k => k.trim()).length} keywords entered
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* Step 3: Competitors */}
-          {currentStep === 3 && (
-            <div className="space-y-6">
-              <div>
-                <h2 className="text-xl font-semibold text-slate-900 mb-1">Competitors</h2>
-                <p className="text-slate-500 text-sm">Add up to 10 competitors to track</p>
-              </div>
-
-              <div className="space-y-4">
-                {formData.competitors.map((competitor, index) => (
-                  <div
-                    key={competitor.id}
-                    className="p-4 bg-slate-50 rounded-lg border border-slate-200"
-                  >
-                    <div className="flex items-center justify-between mb-3">
-                      <span className="text-sm font-medium text-slate-700">
-                        Competitor {index + 1}
-                      </span>
-                      {formData.competitors.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => removeCompetitor(competitor.id)}
-                          className="text-slate-400 hover:text-red-500 transition-colors"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      )}
-                    </div>
-
-                    <div className="space-y-3">
-                      <input
-                        type="text"
-                        value={competitor.name}
-                        onChange={(e) => updateCompetitor(competitor.id, 'name', e.target.value)}
-                        placeholder="Competitor name"
-                        className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-forest-500 focus:border-transparent text-slate-900 placeholder-slate-400 text-sm bg-white"
-                      />
-                      <input
-                        type="url"
-                        value={competitor.url}
-                        onChange={(e) => updateCompetitor(competitor.id, 'url', e.target.value)}
-                        placeholder="https://competitor.com"
-                        className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-forest-500 focus:border-transparent text-slate-900 placeholder-slate-400 text-sm bg-white"
-                      />
-                      <textarea
-                        value={competitor.keywords}
-                        onChange={(e) => updateCompetitor(competitor.id, 'keywords', e.target.value)}
-                        placeholder="Keywords (one per line)"
-                        rows={3}
-                        className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-forest-500 focus:border-transparent text-slate-900 placeholder-slate-400 text-sm resize-none font-mono bg-white"
-                      />
-                    </div>
-                  </div>
-                ))}
-
-                {formData.competitors.length < 10 && (
-                  <button
-                    type="button"
-                    onClick={addCompetitor}
-                    className="w-full py-2.5 border-2 border-dashed border-slate-300 rounded-lg text-slate-500 hover:border-forest-500 hover:text-forest-600 transition-colors flex items-center justify-center gap-2"
-                  >
-                    <Plus className="w-4 h-4" />
-                    Add Competitor ({formData.competitors.length}/10)
-                  </button>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Step 4: Market Keywords */}
-          {currentStep === 4 && (
-            <div className="space-y-6">
-              <div>
-                <h2 className="text-xl font-semibold text-slate-900 mb-1">Market Keywords</h2>
-                <p className="text-slate-500 text-sm">Add keywords to track market trends (optional)</p>
-              </div>
-
-              <div className="space-y-3">
-                {formData.marketKeywords.map((mk) => (
-                  <div key={mk.id} className="flex gap-2">
-                    <input
-                      type="text"
-                      value={mk.keyword}
-                      onChange={(e) => updateMarketKeyword(mk.id, 'keyword', e.target.value)}
-                      placeholder="Enter keyword"
-                      className="flex-1 px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-forest-500 focus:border-transparent text-slate-900 placeholder-slate-400 text-sm"
-                    />
-                    <select
-                      value={mk.category}
-                      onChange={(e) => updateMarketKeyword(mk.id, 'category', e.target.value)}
-                      className="w-40 px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-forest-500 focus:border-transparent text-slate-900 bg-white text-sm"
-                    >
-                      {CATEGORIES.map((cat) => (
-                        <option key={cat.value} value={cat.value}>
-                          {cat.label}
-                        </option>
-                      ))}
-                    </select>
-                    {formData.marketKeywords.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => removeMarketKeyword(mk.id)}
-                        className="p-2 text-slate-400 hover:text-red-500 transition-colors"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    )}
-                  </div>
-                ))}
-
-                <button
-                  type="button"
-                  onClick={addMarketKeyword}
-                  className="w-full py-2.5 border-2 border-dashed border-slate-300 rounded-lg text-slate-500 hover:border-forest-500 hover:text-forest-600 transition-colors flex items-center justify-center gap-2"
-                >
-                  <Plus className="w-4 h-4" />
-                  Add Keyword
-                </button>
-              </div>
-
-              <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
-                <p className="text-sm text-slate-600">
-                  <strong>Tip:</strong> Categories help organize your keywords:
-                </p>
-                <ul className="text-xs text-slate-500 mt-2 space-y-1">
-                  <li><strong>Comparison:</strong> "casino vergelijken", "beste online casino"</li>
-                  <li><strong>Problem:</strong> "casino problemen", "gokverslaving"</li>
-                  <li><strong>Product:</strong> "live casino", "casino bonus"</li>
-                  <li><strong>Regulation:</strong> "casino vergunning", "KSA"</li>
-                  <li><strong>Review:</strong> "casino review", "ervaringen"</li>
-                </ul>
-              </div>
-            </div>
-          )}
-
-          {/* Navigation Buttons */}
-          <div className="flex items-center justify-between mt-8 pt-6 border-t border-slate-200">
-            <button
-              type="button"
-              onClick={prevStep}
-              disabled={currentStep === 1}
-              className="flex items-center gap-2 px-4 py-2 text-slate-600 hover:text-slate-900 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              <ChevronLeft className="w-4 h-4" />
-              Back
-            </button>
-
-            {currentStep < 4 ? (
-              <button
-                type="button"
-                onClick={nextStep}
-                disabled={!canProceed()}
-                className="flex items-center gap-2 px-5 py-2.5 bg-forest-600 text-white rounded-lg font-medium hover:bg-forest-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                Continue
-                <ChevronRight className="w-4 h-4" />
+          {/* Navigation */}
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginTop: '28px',
+            paddingTop: '20px',
+            borderTop: '1px solid #F0E8D8',
+          }}>
+            {step > 1 ? (
+              <button type="button" onClick={() => setStep(step - 1)} style={styles.btnBack}>
+                ← Back
               </button>
             ) : (
-              <button
-                type="button"
-                onClick={handleSubmit}
-                disabled={isSubmitting}
-                className="flex items-center gap-2 px-5 py-2.5 bg-forest-600 text-white rounded-lg font-medium hover:bg-forest-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Creating...
-                  </>
-                ) : (
-                  <>
-                    <Check className="w-4 h-4" />
-                    Complete Setup
-                  </>
-                )}
-              </button>
+              <div />
             )}
-          </div>
-        </div>
 
-        {/* Skip for now link */}
-        <div className="text-center mt-4">
-          <button
-            type="button"
-            onClick={() => navigate('/')}
-            className="text-sm text-slate-400 hover:text-slate-600 transition-colors"
-          >
-            Skip for now
-          </button>
+            <button
+              type="button"
+              onClick={handleNext}
+              disabled={!canProceed() || saving}
+              style={canProceed() && !saving ? styles.btnPrimary : styles.btnPrimaryDisabled}
+            >
+              {saving ? (
+                <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} />
+                  Saving...
+                </span>
+              ) : step === 4 ? (
+                'Launch Dashboard →'
+              ) : (
+                'Next →'
+              )}
+            </button>
+          </div>
         </div>
       </div>
     </div>
