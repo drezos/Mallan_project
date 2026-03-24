@@ -200,7 +200,7 @@ export function TAMTrendChart({
             </span>
             <div className={cn(
               'flex items-center gap-0.5 text-xs font-semibold px-1.5 py-0.5 rounded',
-              isGrowthPositive ? 'text-forest-700 bg-forest-100' : 'text-red-700 bg-red-100'
+              isGrowthPositive ? 'text-brew-green bg-brew-green/10' : 'text-brew-red bg-brew-red/10'
             )}>
               {isGrowthPositive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
               {tamGrowth.toFixed(1)}% (12W)

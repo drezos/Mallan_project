@@ -9,7 +9,7 @@
   }
   
   body {
-    @apply bg-slate-50 text-slate-800 font-sans;
+    @apply bg-brew-beige text-brew-dark font-sans;
   }
   
   /* Smooth scrolling */
@@ -26,12 +26,14 @@
 @layer components {
   /* Card component with premium feel */
   .card {
-    @apply bg-white rounded-xl border border-slate-200/60 shadow-card 
+    @apply bg-white rounded-xl border border-slate-200/80 shadow-card
            transition-all duration-300 ease-out;
+    box-shadow: 0 2px 8px 0 rgb(139 69 19 / 0.08), 0 1px 2px -1px rgb(0 0 0 / 0.04);
   }
-  
+
   .card:hover {
-    @apply shadow-card-hover border-slate-200;
+    @apply border-slate-200;
+    box-shadow: 0 6px 16px 0 rgb(139 69 19 / 0.10), 0 2px 4px -2px rgb(0 0 0 / 0.06);
   }
   
   /* Metric value styling */
@@ -48,11 +50,11 @@
   
   /* Trend indicator */
   .trend-up {
-    @apply text-forest-600;
+    color: #228B22;
   }
-  
+
   .trend-down {
-    @apply text-red-500;
+    color: #FF4500;
   }
   
   .trend-neutral {
@@ -81,7 +83,7 @@
   }
   
   .nav-item.active {
-    @apply bg-forest-50 text-forest-700;
+    @apply bg-brew-brown/10 text-brew-brown;
   }
   
   /* Button variants */

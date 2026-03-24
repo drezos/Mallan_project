@@ -73,7 +73,7 @@ export function ShareOfSearchCard({ current, change, monthlyHistory }: ShareOfSe
         <div className="mt-4 flex items-center gap-2">
           <div className={cn(
             'flex items-center gap-1 text-sm font-medium px-2.5 py-1 rounded-full',
-            isPositive ? 'text-forest-700 bg-forest-100' : 'text-red-700 bg-red-100'
+            isPositive ? 'text-brew-green bg-brew-green/10' : 'text-brew-red bg-brew-red/10'
           )}>
             {isPositive ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
             {formatPercentage(change, true)}
@@ -129,7 +129,7 @@ export function BrandVolumeCard({ volume, priorityKeyword, priorityVolume, growt
         </div>
         <div className={cn(
           'flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full',
-          isPositive ? 'text-forest-700 bg-forest-100' : 'text-red-700 bg-red-100'
+          isPositive ? 'text-brew-green bg-brew-green/10' : 'text-brew-red bg-brew-red/10'
         )}>
           {isPositive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
           {formatPercentage(growth, true)} MoM
@@ -168,7 +168,7 @@ export function BrandVolumeCard({ volume, priorityKeyword, priorityVolume, growt
             {marketRank.change !== 0 && (
               <div className={cn(
                 'flex items-center gap-0.5 text-xs font-semibold px-1.5 py-0.5 rounded',
-                rankImproved ? 'text-forest-700 bg-forest-100' : 'text-red-700 bg-red-100'
+                rankImproved ? 'text-brew-green bg-brew-green/10' : 'text-brew-red bg-brew-red/10'
               )}>
                 {rankImproved ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />}
                 {Math.abs(marketRank.change)}
