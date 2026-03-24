@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
+import { useUser } from '@clerk/clerk-react'
 import { Check, Loader2 } from 'lucide-react'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://mallanproject-production.up.railway.app'
@@ -564,7 +565,8 @@ function Step4({
 export function Onboarding() {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
-  const tenantId = searchParams.get('tenant') || ''
+  const { user, isLoaded: userLoaded } = useUser()
+  const tenantId = searchParams.get('tenant') || (user?.publicMetadata?.tenant_id as string) || ''
 
   useEffect(() => {
     console.log('tenant_id:', tenantId)
@@ -733,7 +735,7 @@ export function Onboarding() {
     }
   }
 
-  if (loadingStatus) {
+  if (!userLoaded || loadingStatus) {
     return (
       <div style={{ ...styles.page, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <Loader2 size={32} style={{ color: '#8B4513', animation: 'spin 1s linear infinite' }} />
