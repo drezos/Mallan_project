@@ -62,6 +62,11 @@ router.post('/clerk', express.raw({ type: 'application/json' }), async (req: Req
         [resolvedEmail, clerkId, tenantId]
       );
 
+      await client.query(
+        `INSERT INTO tenant_settings (tenant_id) VALUES ($1)`,
+        [tenantId]
+      );
+
       await client.query('COMMIT');
 
       console.log(`✅ Created tenant and user for Clerk user ${clerkId} (${resolvedEmail})`);

@@ -12,6 +12,7 @@ import tenantsRouter from './routes/tenants';
 import authRoutes, { debugRouter } from './routes/auth';
 import webhooksRouter from './routes/webhooks';
 import dashboardRouter from './routes/dashboard';
+import onboardingRouter from './routes/onboarding';
 
 // Import cache service for initialization
 import { cacheService } from './db/cache';
@@ -43,6 +44,7 @@ app.use('/api/tenants', tenantsRouter);
 app.use('/api/auth', authRoutes);
 app.use('/api/debug', debugRouter);
 app.use('/api/dashboard', dashboardRouter);
+app.use('/api/onboarding', onboardingRouter);
 
 // Root endpoint
 app.get('/', (req, res) => {
