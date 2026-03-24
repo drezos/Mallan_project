@@ -1,30 +1,57 @@
+import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { useUser } from '@clerk/clerk-react';
 import { RefreshCw, Loader2, WifiOff } from 'lucide-react';
-import { useDashboard } from '../hooks/useDashboard'
-import { useAnalyticsDashboard } from '../hooks/useAnalyticsDashboard'
-import type { AnalyticsDashboardResponse } from '../lib/api'
+import { useDashboard } from '../hooks/useDashboard';
+import { useAnalyticsDashboard } from '../hooks/useAnalyticsDashboard';
+import type { AnalyticsDashboardResponse, AdsPlatformMetrics } from '../lib/api';
+
+type PillarTab = 'ads' | 'social' | 'website' | 'brand';
+
+function getGreeting(): string {
+  const hour = new Date().getHours();
+  if (hour < 12) return 'Good Morning';
+  if (hour < 18) return 'Good Afternoon';
+  return 'Good Evening';
+}
+
+function fmt(value: number | undefined | null, type: 'currency' | 'number' | 'percent'): string {
+  if (value === undefined || value === null) return '—';
+  switch (type) {
+    case 'currency':
+      return `€${value.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    case 'number':
+      return value.toLocaleString('nl-NL');
+    case 'percent':
+      return `${value.toFixed(2)}%`;
+  }
+}
+
+function platformIsEmpty(p?: AdsPlatformMetrics): boolean {
+  return !p || (p.spend === 0 && p.clicks === 0 && p.impressions === 0);
+}
+
+function socialIsEmpty(s?: AnalyticsDashboardResponse['social']): boolean {
+  return !s || (s.reach === 0 && s.impressions === 0 && s.engagementRate === 0 && s.followerGrowth === 0);
+}
 
 export function Dashboard() {
-  // Read tenant from URL query params (e.g., /dashboard?tenant=quicklets)
   const [searchParams] = useSearchParams();
   const tenant = searchParams.get('tenant') || undefined;
+  const { user } = useUser();
+  const [activeTab, setActiveTab] = useState<PillarTab>('ads');
 
   const dashboardQuery = useDashboard(tenant);
   const analyticsQuery = useAnalyticsDashboard(tenant);
 
   const isLoading = dashboardQuery.isLoading;
-  // Treat null API response as error (API returns null on fetch failure)
   const isError = dashboardQuery.isError || (dashboardQuery.isFetched && dashboardQuery.data === null);
+  const refetch = () => { dashboardQuery.refetch(); analyticsQuery.refetch(); };
 
-  const refetch = () => {
-    dashboardQuery.refetch();
-    analyticsQuery.refetch();
-  };
-
-  // Get data from dashboard response
   const dashboardData = dashboardQuery.data?.data ?? undefined;
+  const analytics = analyticsQuery.data as AnalyticsDashboardResponse | undefined;
+  const firstName = user?.firstName ?? 'there';
 
-  // Loading state
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -36,7 +63,6 @@ export function Dashboard() {
     );
   }
 
-  // Error state - show when API failed to load data
   if (isError && !dashboardData) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -47,7 +73,7 @@ export function Dashboard() {
             {tenant ? `Could not load data for tenant "${tenant}"` : 'Could not connect to the server'}
           </p>
           <button
-            onClick={() => refetch()}
+            onClick={refetch}
             className="px-4 py-2 bg-forest-500 text-white rounded-lg hover:bg-forest-600 transition-colors inline-flex items-center gap-2"
           >
             <RefreshCw className="w-4 h-4" />
@@ -59,33 +85,37 @@ export function Dashboard() {
   }
 
   return (
-    <div className="space-y-8">
-      {/* Status indicator */}
-      <div className="opacity-0 animate-fade-in flex items-center justify-end">
-        <div className="flex items-center gap-3">
-          {/* Last updated timestamp */}
+    <div className="space-y-6">
+      {/* A. Greeting Banner */}
+      <div className="opacity-0 animate-fade-in flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-display font-bold text-slate-900">
+            {getGreeting()}, {firstName}!
+          </h1>
+          <p className="text-slate-500 mt-1">Here's your espresso shot ☕</p>
+        </div>
+        <div className="flex items-center gap-3 flex-shrink-0">
+          <span className="px-3 py-1 bg-slate-100 text-slate-600 text-sm font-medium rounded-full">
+            Weekly
+          </span>
           {dashboardData?.lastUpdated && (
-            <div className="text-sm text-gray-500">
+            <span className="text-sm text-gray-500 hidden sm:inline">
               Updated {formatRelativeTime(dashboardData.lastUpdated)}
-            </div>
+            </span>
           )}
-
-          {/* Connection status */}
           {isError ? (
-            <div className="flex items-center gap-2 text-amber-600 text-sm">
+            <div className="flex items-center gap-1.5 text-amber-600 text-sm">
               <WifiOff className="w-4 h-4" />
-              <span>Using cached data</span>
+              <span className="hidden sm:inline">Cached</span>
             </div>
           ) : (
-            <div className="flex items-center gap-2 text-emerald-600 text-sm">
+            <div className="flex items-center gap-1.5 text-emerald-600 text-sm">
               <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-              <span>Live</span>
+              <span className="hidden sm:inline">Live</span>
             </div>
           )}
-
-          {/* Refresh button */}
           <button
-            onClick={() => refetch()}
+            onClick={refetch}
             className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
             title="Refresh data"
           >
@@ -94,37 +124,154 @@ export function Dashboard() {
         </div>
       </div>
 
-      {/* ===========================================
-          ANALYTICS PILLARS
-          =========================================== */}
-      <section>
-        <h2 className="text-lg font-display font-semibold text-slate-800 mb-4 opacity-0 animate-fade-in">
-          Performance Overview
-        </h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-          <AdsPillar data={analyticsQuery.data?.ads} isLoading={analyticsQuery.isLoading} />
-          <WebsitePillar data={analyticsQuery.data?.website} isLoading={analyticsQuery.isLoading} />
-          <BrandPillar data={analyticsQuery.data?.brand} isLoading={analyticsQuery.isLoading} />
-          <SocialPillar />
+      {/* B. North Star Metric Cards */}
+      <div
+        className="grid grid-cols-2 xl:grid-cols-4 gap-4 opacity-0 animate-fade-in"
+        style={{ animationDelay: '100ms' }}
+      >
+        <NorthStarCard
+          label="Ads"
+          sublabel="Total Spend"
+          value={analytics?.ads ? fmt(analytics.ads.spend, 'currency') : '—'}
+          color="blue"
+          isLoading={analyticsQuery.isLoading}
+        />
+        <NorthStarCard
+          label="Website"
+          sublabel="Sessions"
+          value={analytics?.website ? fmt(analytics.website.sessions, 'number') : '—'}
+          color="emerald"
+          isLoading={analyticsQuery.isLoading}
+        />
+        <NorthStarCard
+          label="Brand"
+          sublabel="Total Impressions"
+          value={analytics?.brand ? fmt(analytics.brand.impressions, 'number') : '—'}
+          color="violet"
+          isLoading={analyticsQuery.isLoading}
+        />
+        <NorthStarCard
+          label="Social"
+          sublabel="Reach"
+          value={analytics?.social?.reach ? fmt(analytics.social.reach, 'number') : '—'}
+          color="pink"
+          isLoading={analyticsQuery.isLoading}
+        />
+      </div>
+
+      {/* C. Pillar Tab Bar + D. Tab Content */}
+      <div className="opacity-0 animate-fade-in" style={{ animationDelay: '200ms' }}>
+        <div className="flex gap-1 border-b border-slate-200">
+          {(['ads', 'social', 'website', 'brand'] as PillarTab[]).map(tab => {
+            const labels: Record<PillarTab, string> = {
+              ads: 'Ads',
+              social: 'Social',
+              website: 'Website',
+              brand: 'Brand',
+            };
+            return (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`px-5 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
+                  activeTab === tab
+                    ? 'border-forest-500 text-forest-600'
+                    : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+                }`}
+              >
+                {labels[tab]}
+              </button>
+            );
+          })}
         </div>
-      </section>
+
+        <div className="mt-6">
+          {activeTab === 'ads' && (
+            <AdsTabContent data={analytics} isLoading={analyticsQuery.isLoading} />
+          )}
+          {activeTab === 'social' && (
+            <SocialTabContent data={analytics?.social} isLoading={analyticsQuery.isLoading} />
+          )}
+          {activeTab === 'website' && (
+            <WebsiteTabContent data={analytics?.website} isLoading={analyticsQuery.isLoading} />
+          )}
+          {activeTab === 'brand' && (
+            <BrandTabContent data={analytics?.brand} isLoading={analyticsQuery.isLoading} />
+          )}
+        </div>
+      </div>
     </div>
-  )
+  );
 }
 
 // ===========================================
-// Analytics Pillar Components
+// North Star Card
 // ===========================================
 
-function PillarSkeleton() {
+function NorthStarCard({
+  label,
+  sublabel,
+  value,
+  color,
+  isLoading,
+}: {
+  label: string;
+  sublabel: string;
+  value: string;
+  color: 'blue' | 'emerald' | 'violet' | 'pink';
+  isLoading: boolean;
+}) {
+  const dotColors = {
+    blue: 'bg-blue-500',
+    emerald: 'bg-emerald-500',
+    violet: 'bg-violet-500',
+    pink: 'bg-pink-400',
+  };
+
+  if (isLoading) {
+    return (
+      <div className="card p-5 animate-pulse">
+        <div className="h-3 bg-slate-200 rounded w-1/2 mb-3" />
+        <div className="h-3 bg-slate-100 rounded w-1/3 mb-4" />
+        <div className="h-7 bg-slate-200 rounded w-3/4" />
+      </div>
+    );
+  }
+
   return (
-    <div className="card p-6 animate-pulse">
-      <div className="h-4 bg-slate-200 rounded w-1/2 mb-4" />
-      <div className="space-y-3">
+    <div className="card p-5">
+      <div className="flex items-center gap-2 mb-1">
+        <span className={`w-2 h-2 rounded-full flex-shrink-0 ${dotColors[color]}`} />
+        <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">{label}</span>
+      </div>
+      <p className="text-xs text-slate-400 mb-2">{sublabel}</p>
+      <p className="text-2xl font-display font-bold text-slate-900">{value}</p>
+    </div>
+  );
+}
+
+// ===========================================
+// Shared helpers
+// ===========================================
+
+function MetricCell({ label, value, small }: { label: string; value: string; small?: boolean }) {
+  return (
+    <div>
+      <p className="text-xs text-slate-400 mb-1">{label}</p>
+      <p className={`font-semibold text-slate-800 ${small ? 'text-sm' : 'text-lg font-display'}`}>{value}</p>
+    </div>
+  );
+}
+
+function TabSkeleton() {
+  return (
+    <div className="card p-6 animate-pulse space-y-4">
+      <div className="h-4 bg-slate-200 rounded w-1/4" />
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-2">
         {[1, 2, 3, 4].map(i => (
-          <div key={i} className="flex justify-between">
-            <div className="h-3 bg-slate-100 rounded w-1/3" />
-            <div className="h-3 bg-slate-100 rounded w-1/4" />
+          <div key={i}>
+            <div className="h-3 bg-slate-100 rounded w-1/2 mb-2" />
+            <div className="h-6 bg-slate-200 rounded w-3/4" />
           </div>
         ))}
       </div>
@@ -132,104 +279,251 @@ function PillarSkeleton() {
   );
 }
 
-function MetricRow({ label, value }: { label: string; value: string | number }) {
-  return (
-    <div className="flex justify-between items-center py-1.5 border-b border-slate-100 last:border-0">
-      <span className="text-xs text-slate-500">{label}</span>
-      <span className="text-sm font-medium text-slate-800">{value}</span>
-    </div>
-  );
-}
+// ===========================================
+// Ads Tab
+// ===========================================
 
-function AdsPillar({ data, isLoading }: { data?: AnalyticsDashboardResponse['ads']; isLoading: boolean }) {
-  if (isLoading) return <PillarSkeleton />;
+function AdsTabContent({
+  data,
+  isLoading,
+}: {
+  data?: AnalyticsDashboardResponse;
+  isLoading: boolean;
+}) {
+  if (isLoading) return <TabSkeleton />;
+
+  const ads = data?.ads;
+
   return (
-    <div className="card p-6">
-      <h3 className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
-        <span className="w-2 h-2 rounded-full bg-blue-500 inline-block" />
-        Ads
-      </h3>
-      <div>
-        <MetricRow label="Spend" value={data ? `€${data.spend.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'} />
-        <MetricRow label="CPA" value={data ? `€${data.cpa.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'} />
-        <MetricRow label="ROAS" value={data ? `${data.roas.toFixed(2)}x` : '—'} />
-        <MetricRow label="Conversions" value={data ? data.conversions.toLocaleString('nl-NL') : '—'} />
-        <MetricRow label="CTR" value={data ? `${data.ctr.toFixed(2)}%` : '—'} />
+    <div className="space-y-6">
+      {/* Combined totals */}
+      <div className="card p-6">
+        <h3 className="text-sm font-semibold text-slate-700 mb-4">Combined Totals</h3>
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
+          <MetricCell label="Spend" value={ads ? fmt(ads.spend, 'currency') : '—'} />
+          <MetricCell label="CPA" value={ads ? fmt(ads.cpa, 'currency') : '—'} />
+          <MetricCell label="ROAS" value={ads ? `${ads.roas.toFixed(2)}x` : '—'} />
+          <MetricCell label="CTR" value={ads ? fmt(ads.ctr, 'percent') : '—'} />
+          <MetricCell label="Conversions" value={ads ? fmt(ads.conversions, 'number') : '—'} />
+        </div>
+      </div>
+
+      {/* Per-platform breakdown */}
+      <div className="space-y-3">
+        <h3 className="text-sm font-semibold text-slate-700">Platform Breakdown</h3>
+        <PlatformRow name="Google Ads" platform={ads?.google} />
+        <PlatformRow name="Meta Ads" platform={ads?.meta} />
+        <PlatformRow name="LinkedIn Ads" platform={ads?.linkedin} />
       </div>
     </div>
   );
 }
 
-function WebsitePillar({ data, isLoading }: { data?: AnalyticsDashboardResponse['website']; isLoading: boolean }) {
-  if (isLoading) return <PillarSkeleton />;
+function PlatformRow({
+  name,
+  platform,
+}: {
+  name: string;
+  platform?: AdsPlatformMetrics;
+}) {
+  if (platformIsEmpty(platform)) {
+    return (
+      <div className="card p-4 flex items-center justify-between opacity-60">
+        <span className="text-sm font-medium text-slate-500">{name}</span>
+        <span className="text-xs text-slate-400">Connect {name} to see data</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="card p-4">
+      <p className="text-sm font-semibold text-slate-700 mb-3">{name}</p>
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+        <MetricCell label="Spend" value={fmt(platform!.spend, 'currency')} small />
+        <MetricCell label="CPA" value={fmt(platform!.cpa, 'currency')} small />
+        <MetricCell label="ROAS" value={`${platform!.roas.toFixed(2)}x`} small />
+        <MetricCell label="CTR" value={fmt(platform!.ctr, 'percent')} small />
+        <MetricCell label="Conversions" value={fmt(platform!.conversions, 'number')} small />
+      </div>
+    </div>
+  );
+}
+
+// ===========================================
+// Social Tab
+// ===========================================
+
+function SocialTabContent({
+  data,
+  isLoading,
+}: {
+  data?: AnalyticsDashboardResponse['social'];
+  isLoading: boolean;
+}) {
+  if (isLoading) return <TabSkeleton />;
+
+  if (socialIsEmpty(data)) {
+    return (
+      <div className="card p-10 flex flex-col items-center justify-center text-center">
+        <div className="w-12 h-12 bg-pink-50 rounded-full flex items-center justify-center mb-4">
+          <span className="text-xl">📱</span>
+        </div>
+        <p className="text-slate-700 font-medium mb-1">Connect Meta to see your social data</p>
+        <p className="text-slate-400 text-sm">Once connected, you'll see reach, impressions, and more.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="card p-6">
-      <h3 className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
-        <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
-        Website
-      </h3>
-      <div>
-        <MetricRow label="Sessions" value={data ? data.sessions.toLocaleString('nl-NL') : '—'} />
-        <MetricRow label="Users" value={data ? data.users.toLocaleString('nl-NL') : '—'} />
-        <MetricRow label="New Users" value={data ? data.newUsers.toLocaleString('nl-NL') : '—'} />
-        <MetricRow label="Bounce Rate" value={data ? `${data.bounceRate.toFixed(1)}%` : '—'} />
+      <h3 className="text-sm font-semibold text-slate-700 mb-4">Social Overview</h3>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <MetricCell label="Reach" value={fmt(data!.reach, 'number')} />
+        <MetricCell label="Impressions" value={fmt(data!.impressions, 'number')} />
+        <MetricCell label="Engagement Rate" value={`${data!.engagementRate?.toFixed(2) ?? '—'}%`} />
+        <MetricCell label="Follower Growth" value={fmt(data!.followerGrowth, 'number')} />
       </div>
+    </div>
+  );
+}
+
+// ===========================================
+// Website Tab
+// ===========================================
+
+function WebsiteTabContent({
+  data,
+  isLoading,
+}: {
+  data?: AnalyticsDashboardResponse['website'];
+  isLoading: boolean;
+}) {
+  if (isLoading) return <TabSkeleton />;
+
+  return (
+    <div className="space-y-4">
+      <div className="card p-6">
+        <h3 className="text-sm font-semibold text-slate-700 mb-4">Website Overview</h3>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+          <MetricCell label="Sessions" value={data ? fmt(data.sessions, 'number') : '—'} />
+          <MetricCell label="New Users" value={data ? fmt(data.newUsers, 'number') : '—'} />
+          <MetricCell label="Bounce Rate" value={data ? `${data.bounceRate.toFixed(1)}%` : '—'} />
+        </div>
+      </div>
+
       {data && data.topSources.length > 0 && (
-        <div className="mt-3 pt-3 border-t border-slate-100">
-          <p className="text-xs text-slate-400 mb-2">Top Sources</p>
-          {data.topSources.slice(0, 3).map(s => (
-            <div key={s.source} className="flex justify-between items-center py-1">
-              <span className="text-xs text-slate-500 truncate max-w-[60%]">{s.source}</span>
-              <span className="text-xs font-medium text-slate-700">{s.sessions.toLocaleString('nl-NL')}</span>
-            </div>
-          ))}
+        <div className="card p-6">
+          <h3 className="text-sm font-semibold text-slate-700 mb-4">Top Traffic Sources</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-xs text-slate-400 border-b border-slate-100">
+                  <th className="text-left pb-2 font-medium">Source</th>
+                  <th className="text-right pb-2 font-medium">Sessions</th>
+                  <th className="text-right pb-2 font-medium">% of Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.topSources.map(s => {
+                  const total = data.sessions > 0 ? data.sessions : 1;
+                  const pct = ((s.sessions / total) * 100).toFixed(1);
+                  return (
+                    <tr key={s.source} className="border-b border-slate-50 last:border-0">
+                      <td className="py-2.5 text-slate-600 truncate max-w-[200px]">{s.source}</td>
+                      <td className="py-2.5 text-right font-medium text-slate-800">
+                        {s.sessions.toLocaleString('nl-NL')}
+                      </td>
+                      <td className="py-2.5 text-right text-slate-500">{pct}%</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>
   );
 }
 
-function BrandPillar({ data, isLoading }: { data?: AnalyticsDashboardResponse['brand']; isLoading: boolean }) {
-  if (isLoading) return <PillarSkeleton />;
+// ===========================================
+// Brand Tab
+// ===========================================
+
+function BrandTabContent({
+  data,
+  isLoading,
+}: {
+  data?: AnalyticsDashboardResponse['brand'];
+  isLoading: boolean;
+}) {
+  if (isLoading) return <TabSkeleton />;
+
+  const ctr =
+    data && data.impressions > 0
+      ? `${((data.clicks / data.impressions) * 100).toFixed(2)}%`
+      : '—';
+
   return (
-    <div className="card p-6">
-      <h3 className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
-        <span className="w-2 h-2 rounded-full bg-violet-500 inline-block" />
-        Brand Search
-      </h3>
-      <div>
-        <MetricRow label="Impressions" value={data ? data.impressions.toLocaleString('nl-NL') : '—'} />
-        <MetricRow label="Clicks" value={data ? data.clicks.toLocaleString('nl-NL') : '—'} />
-        <MetricRow label="Avg. Position" value={data ? data.avgPosition.toFixed(1) : '—'} />
+    <div className="space-y-4">
+      <div className="card p-6">
+        <h3 className="text-sm font-semibold text-slate-700 mb-4">Brand Search Overview</h3>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <MetricCell label="Total Impressions" value={data ? fmt(data.impressions, 'number') : '—'} />
+          <MetricCell label="Total Clicks" value={data ? fmt(data.clicks, 'number') : '—'} />
+          <MetricCell label="Average Position" value={data ? data.avgPosition.toFixed(1) : '—'} />
+          <MetricCell label="CTR" value={ctr} />
+        </div>
       </div>
+
       {data && data.topQueries.length > 0 && (
-        <div className="mt-3 pt-3 border-t border-slate-100">
-          <p className="text-xs text-slate-400 mb-2">Top Queries</p>
-          {data.topQueries.slice(0, 3).map((q: { query: string; clicks: number; impressions: number }) => (
-            <div key={q.query} className="flex justify-between items-center py-1">
-              <span className="text-xs text-slate-500 truncate max-w-[60%]">{q.query}</span>
-              <span className="text-xs font-medium text-slate-700">{q.clicks.toLocaleString('nl-NL')} clk</span>
-            </div>
-          ))}
+        <div className="card p-6">
+          <h3 className="text-sm font-semibold text-slate-700 mb-4">Top Search Queries</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-xs text-slate-400 border-b border-slate-100">
+                  <th className="text-left pb-2 font-medium">Query</th>
+                  <th className="text-right pb-2 font-medium">Clicks</th>
+                  <th className="text-right pb-2 font-medium">Impressions</th>
+                  <th className="text-right pb-2 font-medium">CTR</th>
+                  <th className="text-right pb-2 font-medium">Position</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.topQueries.map(q => {
+                  const queryCtr =
+                    q.impressions > 0
+                      ? `${((q.clicks / q.impressions) * 100).toFixed(2)}%`
+                      : '—';
+                  return (
+                    <tr key={q.query} className="border-b border-slate-50 last:border-0">
+                      <td className="py-2.5 text-slate-600 truncate max-w-[200px]">{q.query}</td>
+                      <td className="py-2.5 text-right font-medium text-slate-800">
+                        {q.clicks.toLocaleString('nl-NL')}
+                      </td>
+                      <td className="py-2.5 text-right text-slate-500">
+                        {q.impressions.toLocaleString('nl-NL')}
+                      </td>
+                      <td className="py-2.5 text-right text-slate-500">{queryCtr}</td>
+                      <td className="py-2.5 text-right text-slate-500">
+                        {q.position != null ? q.position.toFixed(1) : '—'}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>
   );
 }
 
-function SocialPillar() {
-  return (
-    <div className="card p-6 flex flex-col items-center justify-center text-center min-h-[160px]">
-      <h3 className="text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
-        <span className="w-2 h-2 rounded-full bg-pink-400 inline-block" />
-        Social
-      </h3>
-      <p className="text-xs text-slate-400 leading-relaxed">
-        Connect Meta &amp; LinkedIn to see social data
-      </p>
-    </div>
-  );
-}
+// ===========================================
+// Utility
+// ===========================================
 
 function formatRelativeTime(dateString: string): string {
   const date = new Date(dateString);
@@ -244,7 +538,6 @@ function formatRelativeTime(dateString: string): string {
   if (diffHours < 24) return `${diffHours} hour${diffHours === 1 ? '' : 's'} ago`;
   if (diffDays < 7) return `${diffDays} day${diffDays === 1 ? '' : 's'} ago`;
 
-  // For older dates, show the actual date
   return date.toLocaleDateString('en-US', {
     month: 'short',
     day: 'numeric',
