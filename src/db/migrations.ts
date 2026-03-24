@@ -201,6 +201,39 @@ async function runMultiTenantMigrations(): Promise<void> {
   `);
 
   console.log('  ✅ users table created');
+
+  // 9. Create tenant_stakeholders table
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS tenant_stakeholders (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+      name VARCHAR(255) NOT NULL,
+      email VARCHAR(255),
+      view_type VARCHAR(50) NOT NULL DEFAULT 'internal',
+      metrics_visible JSONB DEFAULT '[]',
+      created_at TIMESTAMP DEFAULT NOW(),
+      updated_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+
+  console.log('  ✅ tenant_stakeholders table created');
+
+  // 10. Create tenant_settings table
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS tenant_settings (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      tenant_id UUID NOT NULL UNIQUE REFERENCES tenants(id) ON DELETE CASCADE,
+      onboarding_complete BOOLEAN DEFAULT FALSE,
+      north_star_focus VARCHAR(50) DEFAULT 'lead_generation',
+      report_frequency VARCHAR(20) DEFAULT 'weekly',
+      report_day VARCHAR(20) DEFAULT 'monday',
+      report_time VARCHAR(10) DEFAULT '08:00',
+      created_at TIMESTAMP DEFAULT NOW(),
+      updated_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+
+  console.log('  ✅ tenant_settings table created');
   console.log('✅ Multi-tenant schema migrations complete');
 }
 
