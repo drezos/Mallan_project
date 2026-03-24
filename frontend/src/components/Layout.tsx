@@ -20,7 +20,7 @@ export function Layout() {
   )?.name || 'Dashboard'
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-brew-beige">
       {/* Sidebar */}
       <aside className="fixed inset-y-0 left-0 w-64 bg-white border-r border-slate-200 z-30">
         {/* Logo */}
@@ -52,11 +52,11 @@ export function Layout() {
               >
                 <item.icon className={cn(
                   'w-5 h-5 transition-colors',
-                  isActive ? 'text-forest-600' : 'text-slate-400 group-hover:text-slate-600'
+                  isActive ? 'text-brew-brown' : 'text-slate-400 group-hover:text-brew-brown/60'
                 )} />
                 <span>{item.name}</span>
                 {isActive && (
-                  <ChevronRight className="w-4 h-4 ml-auto text-forest-400" />
+                  <ChevronRight className="w-4 h-4 ml-auto text-brew-brown/50" />
                 )}
               </NavLink>
             )

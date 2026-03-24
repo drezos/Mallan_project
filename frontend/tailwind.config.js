@@ -35,6 +35,15 @@ export default {
           900: '#7e3110',
           950: '#441606',
         },
+        // WeeklyBrew coffee-inspired palette
+        brew: {
+          beige: '#F5F5DC',
+          brown: '#8B4513',
+          orange: '#FF8C00',
+          dark: '#4A2C2A',
+          green: '#228B22',
+          red: '#FF4500',
+        },
         // Neutral grays with slight warmth
         slate: {
           50: '#f8f9fa',
@@ -54,6 +63,7 @@ export default {
         sans: ['DM Sans', 'system-ui', 'sans-serif'],
         display: ['Outfit', 'system-ui', 'sans-serif'],
         mono: ['JetBrains Mono', 'monospace'],
+        comfortaa: ['Comfortaa', 'system-ui', 'sans-serif'],
       },
       boxShadow: {
         'card': '0 1px 3px 0 rgb(0 0 0 / 0.05), 0 1px 2px -1px rgb(0 0 0 / 0.05)',

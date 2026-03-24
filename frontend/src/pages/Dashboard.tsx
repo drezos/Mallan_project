@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useUser } from '@clerk/clerk-react';
-import { RefreshCw, Loader2, WifiOff } from 'lucide-react';
+import { RefreshCw, Loader2, WifiOff, Star, Link2 } from 'lucide-react';
 import { useDashboard } from '../hooks/useDashboard';
 import { useAnalyticsDashboard } from '../hooks/useAnalyticsDashboard';
 import type { AnalyticsDashboardResponse, AdsPlatformMetrics } from '../lib/api';
@@ -89,7 +89,7 @@ export function Dashboard() {
       {/* A. Greeting Banner */}
       <div className="opacity-0 animate-fade-in flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-display font-bold text-slate-900">
+          <h1 className="text-2xl font-comfortaa font-bold text-brew-dark">
             {getGreeting()}, {firstName}!
           </h1>
           <p className="text-slate-500 mt-1">Here's your espresso shot ☕</p>
@@ -173,10 +173,10 @@ export function Dashboard() {
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
-                className={`px-5 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
+                className={`px-5 py-2.5 text-sm font-comfortaa font-semibold transition-all duration-150 border-b-2 -mb-px rounded-t-sm ${
                   activeTab === tab
-                    ? 'border-forest-500 text-forest-600'
-                    : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+                    ? 'border-brew-brown text-brew-brown'
+                    : 'border-transparent text-slate-500 hover:text-brew-brown/70 hover:border-brew-brown/30 hover:bg-brew-brown/5'
                 }`}
               >
                 {labels[tab]}
@@ -242,10 +242,10 @@ function NorthStarCard({
     <div className="card p-5">
       <div className="flex items-center gap-2 mb-1">
         <span className={`w-2 h-2 rounded-full flex-shrink-0 ${dotColors[color]}`} />
-        <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">{label}</span>
+        <span className="text-xs font-comfortaa font-semibold text-brew-brown/70 uppercase tracking-wide">{label}</span>
       </div>
       <p className="text-xs text-slate-400 mb-2">{sublabel}</p>
-      <p className="text-2xl font-display font-bold text-slate-900">{value}</p>
+      <p className="text-2xl font-display font-bold text-brew-dark">{value}</p>
     </div>
   );
 }
@@ -257,8 +257,11 @@ function NorthStarCard({
 function MetricCell({ label, value, small }: { label: string; value: string; small?: boolean }) {
   return (
     <div>
-      <p className="text-xs text-slate-400 mb-1">{label}</p>
-      <p className={`font-semibold text-slate-800 ${small ? 'text-sm' : 'text-lg font-display'}`}>{value}</p>
+      <p className="flex items-center gap-1 text-xs text-slate-400 mb-1">
+        <Star className="w-2.5 h-2.5 text-brew-orange/30 flex-shrink-0" aria-hidden="true" />
+        {label}
+      </p>
+      <p className={`font-semibold text-brew-dark ${small ? 'text-sm' : 'text-lg font-display'}`}>{value}</p>
     </div>
   );
 }
@@ -298,7 +301,7 @@ function AdsTabContent({
     <div className="space-y-6">
       {/* Combined totals */}
       <div className="card p-6">
-        <h3 className="text-sm font-semibold text-slate-700 mb-4">Combined Totals</h3>
+        <h3 className="text-sm font-comfortaa font-semibold text-brew-dark mb-4">Combined Totals</h3>
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
           <MetricCell label="Spend" value={ads ? fmt(ads.spend, 'currency') : '—'} />
           <MetricCell label="CPA" value={ads ? fmt(ads.cpa, 'currency') : '—'} />
@@ -310,7 +313,7 @@ function AdsTabContent({
 
       {/* Per-platform breakdown */}
       <div className="space-y-3">
-        <h3 className="text-sm font-semibold text-slate-700">Platform Breakdown</h3>
+        <h3 className="text-sm font-comfortaa font-semibold text-brew-dark">Platform Breakdown</h3>
         <PlatformRow name="Google Ads" platform={ads?.google} />
         <PlatformRow name="Meta Ads" platform={ads?.meta} />
         <PlatformRow name="LinkedIn Ads" platform={ads?.linkedin} />
@@ -328,9 +331,12 @@ function PlatformRow({
 }) {
   if (platformIsEmpty(platform)) {
     return (
-      <div className="card p-4 flex items-center justify-between opacity-60">
-        <span className="text-sm font-medium text-slate-500">{name}</span>
-        <span className="text-xs text-slate-400">Connect {name} to see data</span>
+      <div className="card p-4 flex items-center justify-between border-dashed">
+        <span className="text-sm font-medium text-slate-400">{name}</span>
+        <div className="flex items-center gap-1.5 text-xs text-brew-orange/60">
+          <Link2 className="w-3.5 h-3.5" aria-hidden="true" />
+          <span>Connect {name} to unlock data</span>
+        </div>
       </div>
     );
   }
@@ -364,11 +370,11 @@ function SocialTabContent({
 
   if (socialIsEmpty(data)) {
     return (
-      <div className="card p-10 flex flex-col items-center justify-center text-center">
-        <div className="w-12 h-12 bg-pink-50 rounded-full flex items-center justify-center mb-4">
-          <span className="text-xl">📱</span>
+      <div className="card p-10 flex flex-col items-center justify-center text-center border-dashed">
+        <div className="w-12 h-12 bg-brew-orange/10 rounded-full flex items-center justify-center mb-4">
+          <Link2 className="w-5 h-5 text-brew-orange/50" aria-hidden="true" />
         </div>
-        <p className="text-slate-700 font-medium mb-1">Connect Meta to see your social data</p>
+        <p className="text-brew-dark/60 font-comfortaa font-semibold mb-1">Connect Meta to see your social data</p>
         <p className="text-slate-400 text-sm">Once connected, you'll see reach, impressions, and more.</p>
       </div>
     );
@@ -376,7 +382,7 @@ function SocialTabContent({
 
   return (
     <div className="card p-6">
-      <h3 className="text-sm font-semibold text-slate-700 mb-4">Social Overview</h3>
+      <h3 className="text-sm font-comfortaa font-semibold text-brew-dark mb-4">Social Overview</h3>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <MetricCell label="Reach" value={fmt(data!.reach, 'number')} />
         <MetricCell label="Impressions" value={fmt(data!.impressions, 'number')} />
@@ -403,7 +409,7 @@ function WebsiteTabContent({
   return (
     <div className="space-y-4">
       <div className="card p-6">
-        <h3 className="text-sm font-semibold text-slate-700 mb-4">Website Overview</h3>
+        <h3 className="text-sm font-comfortaa font-semibold text-brew-dark mb-4">Website Overview</h3>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
           <MetricCell label="Sessions" value={data ? fmt(data.sessions, 'number') : '—'} />
           <MetricCell label="New Users" value={data ? fmt(data.newUsers, 'number') : '—'} />
@@ -413,7 +419,7 @@ function WebsiteTabContent({
 
       {data && data.topSources.length > 0 && (
         <div className="card p-6">
-          <h3 className="text-sm font-semibold text-slate-700 mb-4">Top Traffic Sources</h3>
+          <h3 className="text-sm font-comfortaa font-semibold text-brew-dark mb-4">Top Traffic Sources</h3>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -467,7 +473,7 @@ function BrandTabContent({
   return (
     <div className="space-y-4">
       <div className="card p-6">
-        <h3 className="text-sm font-semibold text-slate-700 mb-4">Brand Search Overview</h3>
+        <h3 className="text-sm font-comfortaa font-semibold text-brew-dark mb-4">Brand Search Overview</h3>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           <MetricCell label="Total Impressions" value={data ? fmt(data.impressions, 'number') : '—'} />
           <MetricCell label="Total Clicks" value={data ? fmt(data.clicks, 'number') : '—'} />
@@ -478,7 +484,7 @@ function BrandTabContent({
 
       {data && data.topQueries.length > 0 && (
         <div className="card p-6">
-          <h3 className="text-sm font-semibold text-slate-700 mb-4">Top Search Queries</h3>
+          <h3 className="text-sm font-comfortaa font-semibold text-brew-dark mb-4">Top Search Queries</h3>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
