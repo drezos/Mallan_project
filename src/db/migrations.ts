@@ -234,6 +234,14 @@ async function runMultiTenantMigrations(): Promise<void> {
   `);
 
   console.log('  ✅ tenant_settings table created');
+
+  // 11. Add selected_platforms column to tenant_settings if not exists
+  await pool.query(`
+    ALTER TABLE tenant_settings
+    ADD COLUMN IF NOT EXISTS selected_platforms JSONB DEFAULT '[]'
+  `);
+
+  console.log('  ✅ selected_platforms column ensured on tenant_settings');
   console.log('✅ Multi-tenant schema migrations complete');
 }
 
