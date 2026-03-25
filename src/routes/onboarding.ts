@@ -193,7 +193,7 @@ router.get('/schedule', async (req: Request, res: Response) => {
 
 // POST /api/onboarding/get-started
 router.post('/get-started', async (req: Request, res: Response) => {
-  const { tenant_id, brand_url, north_star_focus } = req.body;
+  const { tenant_id, brand_url, north_star_focus, selected_platforms } = req.body;
 
   if (!tenant_id) {
     return res.status(400).json({ error: 'tenant_id is required' });
@@ -212,12 +212,15 @@ router.post('/get-started', async (req: Request, res: Response) => {
       );
     }
 
-    if (north_star_focus) {
-      await pool.query(
-        `UPDATE tenant_settings SET north_star_focus = $2, updated_at = NOW() WHERE tenant_id = $1`,
-        [tenant_id, north_star_focus]
-      );
-    }
+    await pool.query(
+      `UPDATE tenant_settings
+       SET north_star_focus = COALESCE($2, north_star_focus),
+           selected_platforms = COALESCE($3, selected_platforms),
+           onboarding_complete = TRUE,
+           updated_at = NOW()
+       WHERE tenant_id = $1`,
+      [tenant_id, north_star_focus || null, selected_platforms ? JSON.stringify(selected_platforms) : null]
+    );
 
     return res.json({ success: true });
   } catch (err) {
@@ -237,12 +240,13 @@ router.get('/get-started', async (req: Request, res: Response) => {
   try {
     const [tenantResult, settingsResult] = await Promise.all([
       pool.query(`SELECT brand_url FROM tenants WHERE id = $1`, [tenant_id]),
-      pool.query(`SELECT north_star_focus FROM tenant_settings WHERE tenant_id = $1`, [tenant_id]),
+      pool.query(`SELECT north_star_focus, selected_platforms FROM tenant_settings WHERE tenant_id = $1`, [tenant_id]),
     ]);
 
     return res.json({
       brand_url: tenantResult.rows[0]?.brand_url || null,
       north_star_focus: settingsResult.rows[0]?.north_star_focus || null,
+      selected_platforms: settingsResult.rows[0]?.selected_platforms || [],
     });
   } catch (err) {
     console.error('Error fetching get-started data:', err);
