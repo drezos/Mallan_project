@@ -322,11 +322,12 @@ function Step2({
   tenantId,
 }: {
   connections: ConnectionStatus
-  tenantId: string
+  tenantId: string | undefined
 }) {
   const tenantLoaded = !!tenantId
 
   const handleConnect = (platform: string) => {
+    if (!tenantId) return
     window.location.href = `${import.meta.env.VITE_API_URL}/api/auth/connect/${platform}?tenant_id=${tenantId}`
   }
 
@@ -566,7 +567,7 @@ export function Onboarding() {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const { user, isLoaded: userLoaded } = useUser()
-  const tenantId = searchParams.get('tenant') || (user?.publicMetadata?.tenant_id as string) || ''
+  const tenantId = searchParams.get('tenant') || undefined
 
   useEffect(() => {
     console.log('tenant_id:', tenantId)
@@ -735,7 +736,7 @@ export function Onboarding() {
     }
   }
 
-  if (!userLoaded || loadingStatus) {
+  if (!userLoaded || !tenantId || loadingStatus) {
     return (
       <div style={{ ...styles.page, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <Loader2 size={32} style={{ color: '#8B4513', animation: 'spin 1s linear infinite' }} />
