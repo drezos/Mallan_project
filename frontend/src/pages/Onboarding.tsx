@@ -227,9 +227,202 @@ function Step1Form({
   )
 }
 
-// ─── Step 2 placeholder ───────────────────────────────────────────────────────
+// ─── Step 2: Your Platforms ───────────────────────────────────────────────────
 
-function Step2Placeholder({ onBack }: { onBack: () => void }) {
+interface Platform {
+  id: string
+  name: string
+  icon: string
+  iconColor: string
+  category: string
+}
+
+const PLATFORMS: Platform[] = [
+  { id: 'ga4',            name: 'Google Analytics',      icon: 'GA',   iconColor: '#4285F4', category: 'Website' },
+  { id: 'google_ads',     name: 'Google Ads',            icon: 'GAds', iconColor: '#4285F4', category: 'Ads'     },
+  { id: 'search_console', name: 'Google Search Console', icon: 'GSC',  iconColor: '#4285F4', category: 'Brand'   },
+  { id: 'meta_ads',       name: 'Meta Ads',              icon: 'Meta', iconColor: '#1877F2', category: 'Ads'     },
+  { id: 'facebook',       name: 'Facebook',              icon: 'FB',   iconColor: '#1877F2', category: 'Social'  },
+  { id: 'instagram',      name: 'Instagram',             icon: 'IG',   iconColor: '#1877F2', category: 'Social'  },
+  { id: 'linkedin_ads',   name: 'LinkedIn Ads',          icon: 'LAds', iconColor: '#0A66C2', category: 'Ads'     },
+  { id: 'linkedin',       name: 'LinkedIn',              icon: 'LI',   iconColor: '#0A66C2', category: 'Social'  },
+]
+
+function Step2Form({
+  selected,
+  onNext,
+  onBack,
+}: {
+  selected: string[]
+  onNext: (platforms: string[]) => void
+  onBack: () => void
+}) {
+  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(selected)
+
+  function togglePlatform(id: string) {
+    setSelectedPlatforms(prev =>
+      prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id]
+    )
+  }
+
+  const canSubmit = selectedPlatforms.length > 0
+
+  return (
+    <div>
+      <h2 style={{
+        fontFamily: 'Comfortaa, system-ui, sans-serif',
+        fontSize: 26,
+        fontWeight: 700,
+        color: '#4A2C2A',
+        margin: '0 0 8px',
+      }}>
+        Which platforms do you use?
+      </h2>
+      <p style={{
+        fontSize: 15,
+        color: '#8B7355',
+        margin: '0 0 28px',
+        fontFamily: 'system-ui, sans-serif',
+      }}>
+        Select all the platforms you want to track. You'll connect them later.
+      </p>
+
+      <div className="platform-grid">
+        {PLATFORMS.map(platform => {
+          const isSelected = selectedPlatforms.includes(platform.id)
+          return (
+            <div
+              key={platform.id}
+              onClick={() => togglePlatform(platform.id)}
+              style={{
+                position: 'relative',
+                padding: '16px',
+                borderRadius: 12,
+                border: isSelected ? '2px solid #8B4513' : '1px solid #D2B48C',
+                background: isSelected ? '#FFF8F0' : '#FFFDF7',
+                cursor: 'pointer',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: 8,
+                transition: 'border-color 0.15s, background 0.15s',
+                userSelect: 'none',
+              }}
+            >
+              {/* Checkmark */}
+              {isSelected && (
+                <div style={{
+                  position: 'absolute',
+                  top: 8,
+                  right: 8,
+                  width: 18,
+                  height: 18,
+                  borderRadius: '50%',
+                  background: '#228B22',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 11,
+                  color: '#fff',
+                  fontWeight: 700,
+                  lineHeight: 1,
+                }}>
+                  ✓
+                </div>
+              )}
+
+              {/* Icon circle */}
+              <div style={{
+                width: 44,
+                height: 44,
+                borderRadius: '50%',
+                background: platform.iconColor,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#fff',
+                fontSize: 11,
+                fontWeight: 700,
+                fontFamily: 'system-ui, sans-serif',
+                letterSpacing: '0.01em',
+                flexShrink: 0,
+              }}>
+                {platform.icon}
+              </div>
+
+              {/* Platform name */}
+              <span style={{
+                fontSize: 13,
+                fontWeight: 600,
+                color: '#4A2C2A',
+                fontFamily: 'system-ui, sans-serif',
+                textAlign: 'center',
+                lineHeight: 1.3,
+              }}>
+                {platform.name}
+              </span>
+
+              {/* Category badge */}
+              <span style={{
+                fontSize: 11,
+                fontWeight: 500,
+                color: '#4A2C2A',
+                background: '#D2B48C',
+                padding: '2px 8px',
+                borderRadius: 999,
+                fontFamily: 'system-ui, sans-serif',
+              }}>
+                {platform.category}
+              </span>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Buttons */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 28 }}>
+        <button
+          onClick={onBack}
+          style={{
+            padding: '11px 28px',
+            borderRadius: 8,
+            border: '1.5px solid #8B4513',
+            background: 'transparent',
+            color: '#8B4513',
+            fontFamily: 'Comfortaa, system-ui, sans-serif',
+            fontWeight: 600,
+            fontSize: 15,
+            cursor: 'pointer',
+          }}
+        >
+          Back
+        </button>
+        <button
+          onClick={() => canSubmit && onNext(selectedPlatforms)}
+          disabled={!canSubmit}
+          style={{
+            padding: '11px 32px',
+            borderRadius: 8,
+            border: 'none',
+            fontFamily: 'Comfortaa, system-ui, sans-serif',
+            fontWeight: 600,
+            fontSize: 15,
+            cursor: canSubmit ? 'pointer' : 'not-allowed',
+            background: canSubmit ? '#FF8C00' : '#D2B48C',
+            color: canSubmit ? '#fff' : '#4A2C2A',
+            transition: 'background 0.15s',
+          }}
+        >
+          Next
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ─── Step 3 placeholder ───────────────────────────────────────────────────────
+
+function Step3Placeholder({ onBack }: { onBack: () => void }) {
   return (
     <div style={{ textAlign: 'center', padding: '16px 0' }}>
       <h2 style={{
@@ -239,7 +432,7 @@ function Step2Placeholder({ onBack }: { onBack: () => void }) {
         color: '#4A2C2A',
         margin: '0 0 16px',
       }}>
-        Step 2 coming soon
+        Step 3 coming soon
       </h2>
       <p style={{ color: '#8B7355', fontSize: 15, margin: '0 0 32px', fontFamily: 'system-ui, sans-serif' }}>
         We're still building this step. Check back soon!
@@ -283,6 +476,7 @@ export function Onboarding() {
 
   const [currentStep, setCurrentStep] = useState(1)
   const [companyData, setCompanyData] = useState<CompanyData>({ companyName: '', website: '' })
+  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([])
 
   // Resolve tenant_id from Clerk user ID
   useEffect(() => {
@@ -364,10 +558,17 @@ export function Onboarding() {
           max-width: 420px;
         }
 
+        .platform-grid {
+          display: grid;
+          grid-template-columns: repeat(4, 1fr);
+          gap: 14px;
+        }
+
         @media (max-width: 767px) {
           .onboarding-root { flex-direction: column; }
           .onboarding-hero { display: none; }
           .onboarding-form-panel { width: 100%; padding: 40px 24px; }
+          .platform-grid { grid-template-columns: repeat(2, 1fr); }
         }
       `}</style>
 
@@ -414,7 +615,18 @@ export function Onboarding() {
             )}
 
             {currentStep === 2 && (
-              <Step2Placeholder onBack={() => setCurrentStep(1)} />
+              <Step2Form
+                selected={selectedPlatforms}
+                onNext={platforms => {
+                  setSelectedPlatforms(platforms)
+                  setCurrentStep(3)
+                }}
+                onBack={() => setCurrentStep(1)}
+              />
+            )}
+
+            {currentStep === 3 && (
+              <Step3Placeholder onBack={() => setCurrentStep(2)} />
             )}
           </div>
         </div>
