@@ -238,15 +238,73 @@ interface Platform {
 }
 
 const PLATFORMS: Platform[] = [
-  { id: 'ga4',            name: 'Google Analytics',      icon: 'GA',   iconColor: '#4285F4', category: 'Website' },
+  { id: 'ga4',            name: 'Google Analytics',      icon: 'GA',   iconColor: '#E37400', category: 'Website' },
   { id: 'google_ads',     name: 'Google Ads',            icon: 'GAds', iconColor: '#4285F4', category: 'Ads'     },
   { id: 'search_console', name: 'Google Search Console', icon: 'GSC',  iconColor: '#4285F4', category: 'Brand'   },
-  { id: 'meta_ads',       name: 'Meta Ads',              icon: 'Meta', iconColor: '#1877F2', category: 'Ads'     },
+  { id: 'meta_ads',       name: 'Meta Ads',              icon: 'Meta', iconColor: '#0081FB', category: 'Ads'     },
   { id: 'facebook',       name: 'Facebook',              icon: 'FB',   iconColor: '#1877F2', category: 'Social'  },
-  { id: 'instagram',      name: 'Instagram',             icon: 'IG',   iconColor: '#1877F2', category: 'Social'  },
+  { id: 'instagram',      name: 'Instagram',             icon: 'IG',   iconColor: '#E4405F', category: 'Social'  },
   { id: 'linkedin_ads',   name: 'LinkedIn Ads',          icon: 'LAds', iconColor: '#0A66C2', category: 'Ads'     },
   { id: 'linkedin',       name: 'LinkedIn',              icon: 'LI',   iconColor: '#0A66C2', category: 'Social'  },
 ]
+
+function getPlatformIcon(id: string): JSX.Element {
+  switch (id) {
+    case 'ga4':
+      return (
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="white">
+          <rect x="2" y="13" width="5" height="7" rx="1"/>
+          <rect x="9.5" y="8" width="5" height="12" rx="1"/>
+          <rect x="17" y="4" width="5" height="16" rx="1"/>
+        </svg>
+      )
+    case 'google_ads':
+      return (
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="white">
+          <polygon points="5,3 21,12 5,21"/>
+        </svg>
+      )
+    case 'search_console':
+      return (
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+          <circle cx="10" cy="10" r="6" stroke="white" strokeWidth="2.5"/>
+          <line x1="14.8" y1="14.8" x2="21" y2="21" stroke="white" strokeWidth="2.5" strokeLinecap="round"/>
+        </svg>
+      )
+    case 'meta_ads':
+      return (
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+          <path d="M12 12C11 9.5 9 7.5 6.5 7.5C4 7.5 2 9.5 2 12C2 14.5 4 16.5 6.5 16.5C9 16.5 11 14.5 12 12Z" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+          <path d="M12 12C13 14.5 15 16.5 17.5 16.5C20 16.5 22 14.5 22 12C22 9.5 20 7.5 17.5 7.5C15 7.5 13 9.5 12 12Z" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      )
+    case 'facebook':
+      return (
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="white">
+          <path d="M13 21v-8h2.6l.4-3H13V8.5C13 7.7 13.3 7 14.5 7H16V4.2C15.2 4.1 14.3 4 13.2 4 10.8 4 9.5 5.4 9.5 8.3V10H7v3h2.5v8H13z"/>
+        </svg>
+      )
+    case 'instagram':
+      return (
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+          <rect x="3" y="3" width="18" height="18" rx="5" stroke="white" strokeWidth="2"/>
+          <circle cx="12" cy="12" r="4" stroke="white" strokeWidth="2"/>
+          <circle cx="17.5" cy="6.5" r="1.2" fill="white"/>
+        </svg>
+      )
+    case 'linkedin_ads':
+    case 'linkedin':
+      return (
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="white">
+          <rect x="3" y="9" width="4" height="12"/>
+          <circle cx="5" cy="5" r="2.5"/>
+          <path d="M11 9h3.5v1.6C15 9.6 16.3 9 17.8 9 20.5 9 21 10.8 21 13.5V21h-3.5v-6.5c0-1.6-.5-2.5-1.8-2.5-1.5 0-2.2 1-2.2 2.7V21H11V9z"/>
+        </svg>
+      )
+    default:
+      return <></>
+  }
+}
 
 function Step2Form({
   selected,
@@ -293,20 +351,23 @@ function Step2Form({
           return (
             <div
               key={platform.id}
+              className="platform-card"
               onClick={() => togglePlatform(platform.id)}
               style={{
                 position: 'relative',
                 padding: '16px',
                 borderRadius: 12,
-                border: isSelected ? '2px solid #8B4513' : '1px solid #D2B48C',
+                border: isSelected ? `2px solid ${platform.iconColor}` : '1px solid #D2B48C',
+                borderLeft: isSelected ? `4px solid ${platform.iconColor}` : '1px solid #D2B48C',
                 background: isSelected ? '#FFF8F0' : '#FFFDF7',
                 cursor: 'pointer',
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
                 gap: 8,
-                transition: 'border-color 0.15s, background 0.15s',
                 userSelect: 'none',
+                minHeight: 130,
+                boxSizing: 'border-box',
               }}
             >
               {/* Checkmark */}
@@ -331,23 +392,18 @@ function Step2Form({
                 </div>
               )}
 
-              {/* Icon circle */}
+              {/* SVG icon in brand-coloured circle */}
               <div style={{
-                width: 44,
-                height: 44,
+                width: 56,
+                height: 56,
                 borderRadius: '50%',
                 background: platform.iconColor,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                color: '#fff',
-                fontSize: 11,
-                fontWeight: 700,
-                fontFamily: 'system-ui, sans-serif',
-                letterSpacing: '0.01em',
                 flexShrink: 0,
               }}>
-                {platform.icon}
+                {getPlatformIcon(platform.id)}
               </div>
 
               {/* Platform name */}
@@ -562,6 +618,14 @@ export function Onboarding() {
           display: grid;
           grid-template-columns: repeat(4, 1fr);
           gap: 14px;
+        }
+
+        .platform-card {
+          transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+        }
+        .platform-card:hover {
+          transform: scale(1.02);
+          box-shadow: 0 6px 20px rgba(0,0,0,0.12);
         }
 
         @media (max-width: 767px) {
