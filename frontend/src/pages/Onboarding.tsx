@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useUser } from '@clerk/clerk-react'
+import { useNavigate } from 'react-router-dom'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -476,39 +477,276 @@ function Step2Form({
   )
 }
 
-// ─── Step 3 placeholder ───────────────────────────────────────────────────────
+// ─── Step 3: Your Goal ────────────────────────────────────────────────────────
 
-function Step3Placeholder({ onBack }: { onBack: () => void }) {
+interface NorthStarOption {
+  id: string
+  label: string
+  description: string
+  icon: JSX.Element
+}
+
+const NORTH_STAR_OPTIONS: NorthStarOption[] = [
+  {
+    id: 'brand_awareness',
+    label: 'Brand Awareness',
+    description: 'Grow visibility and reach across channels',
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+        <ellipse cx="12" cy="12" rx="10" ry="6" stroke="currentColor" strokeWidth="2"/>
+        <circle cx="12" cy="12" r="2.5" fill="currentColor"/>
+        <line x1="2" y1="12" x2="22" y2="12" stroke="currentColor" strokeWidth="2"/>
+      </svg>
+    ),
+  },
+  {
+    id: 'engagement',
+    label: 'Engagement',
+    description: 'Increase likes, comments, shares and interaction',
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+        <path d="M12 21C12 21 3 15 3 9a5 5 0 0 1 9-3 5 5 0 0 1 9 3c0 6-9 12-9 12z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round"/>
+      </svg>
+    ),
+  },
+  {
+    id: 'lead_generation',
+    label: 'Lead Generation',
+    description: 'Capture more leads and sign-ups',
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+        <path d="M12 3C8 3 5 6 5 9c0 4 7 12 7 12s7-8 7-12c0-3-3-6-7-6z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round"/>
+        <circle cx="12" cy="9" r="2" fill="currentColor"/>
+        <path d="M8 21h8" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+        <line x1="12" y1="21" x2="12" y2="17" stroke="currentColor" strokeWidth="2"/>
+      </svg>
+    ),
+  },
+  {
+    id: 'roas',
+    label: 'ROAS',
+    description: 'Maximise return on ad spend',
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+        <polyline points="3,17 8,11 13,14 21,5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+        <polyline points="17,5 21,5 21,9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+      </svg>
+    ),
+  },
+  {
+    id: 'traffic',
+    label: 'Traffic',
+    description: 'Drive more visitors to your website',
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+        <path d="M5 12l7-7 7 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+        <path d="M12 5v14" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+        <path d="M8 21h8" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+      </svg>
+    ),
+  },
+]
+
+function Step3Form({
+  tenantId,
+  companyName,
+  websiteUrl,
+  selectedPlatforms,
+  onBack,
+}: {
+  tenantId: string | null
+  companyName: string
+  websiteUrl: string
+  selectedPlatforms: string[]
+  onBack: () => void
+}) {
+  const navigate = useNavigate()
+  const [northStar, setNorthStar] = useState<string | null>(null)
+  const [hoveredOption, setHoveredOption] = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState(false)
+  const [submitError, setSubmitError] = useState('')
+
+  const canSubmit = northStar !== null && !isLoading
+
+  async function handleLaunch() {
+    if (!canSubmit || !tenantId) return
+    setIsLoading(true)
+    setSubmitError('')
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL as string
+      const res = await fetch(`${apiUrl}/api/onboarding/complete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tenant_id: tenantId,
+          company_name: companyName,
+          website_url: websiteUrl,
+          selected_platforms: selectedPlatforms,
+          north_star: northStar,
+        }),
+      })
+      if (!res.ok) throw new Error('Request failed')
+      navigate('/')
+    } catch {
+      setSubmitError('Something went wrong. Please try again.')
+      setIsLoading(false)
+    }
+  }
+
   return (
-    <div style={{ textAlign: 'center', padding: '16px 0' }}>
+    <div>
       <h2 style={{
         fontFamily: 'Comfortaa, system-ui, sans-serif',
-        fontSize: 24,
+        fontSize: 26,
         fontWeight: 700,
         color: '#4A2C2A',
-        margin: '0 0 16px',
+        margin: '0 0 8px',
       }}>
-        Step 3 coming soon
+        What's your main marketing goal?
       </h2>
-      <p style={{ color: '#8B7355', fontSize: 15, margin: '0 0 32px', fontFamily: 'system-ui, sans-serif' }}>
-        We're still building this step. Check back soon!
+      <p style={{
+        fontSize: 15,
+        color: '#8B7355',
+        margin: '0 0 24px',
+        fontFamily: 'system-ui, sans-serif',
+      }}>
+        This sets up your dashboard to highlight what matters most.
       </p>
-      <button
-        onClick={onBack}
-        style={{
-          padding: '10px 28px',
-          borderRadius: 8,
-          border: '1.5px solid #8B4513',
-          background: 'transparent',
-          color: '#8B4513',
-          fontFamily: 'Comfortaa, system-ui, sans-serif',
-          fontWeight: 600,
-          fontSize: 15,
-          cursor: 'pointer',
-        }}
-      >
-        Back
-      </button>
+
+      {/* North Star option cards */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {NORTH_STAR_OPTIONS.map(option => {
+          const isSelected = northStar === option.id
+          const isHovered = hoveredOption === option.id
+          return (
+            <div
+              key={option.id}
+              onClick={() => setNorthStar(option.id)}
+              onMouseEnter={() => setHoveredOption(option.id)}
+              onMouseLeave={() => setHoveredOption(null)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 14,
+                padding: '14px 16px',
+                borderRadius: 10,
+                border: isSelected ? '2px solid #8B4513' : '1.5px solid #D2B48C',
+                background: isSelected ? '#FFF8F0' : '#fff',
+                cursor: 'pointer',
+                userSelect: 'none',
+                transition: 'transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease, background 0.15s ease',
+                transform: isHovered && !isSelected ? 'scale(1.01)' : 'scale(1)',
+                boxShadow: isHovered ? '0 4px 16px rgba(0,0,0,0.10)' : 'none',
+                boxSizing: 'border-box',
+              }}
+            >
+              {/* Icon circle */}
+              <div style={{
+                width: 44,
+                height: 44,
+                borderRadius: '50%',
+                background: isSelected ? '#8B4513' : '#F5EFE6',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+                color: isSelected ? '#fff' : '#8B4513',
+                transition: 'background 0.15s',
+              }}>
+                {option.icon}
+              </div>
+              {/* Text */}
+              <div style={{ flex: 1 }}>
+                <div style={{
+                  fontFamily: 'Comfortaa, system-ui, sans-serif',
+                  fontWeight: 600,
+                  fontSize: 15,
+                  color: '#4A2C2A',
+                  marginBottom: 2,
+                }}>
+                  {option.label}
+                </div>
+                <div style={{
+                  fontFamily: 'system-ui, sans-serif',
+                  fontSize: 13,
+                  color: '#6B5B5B',
+                }}>
+                  {option.description}
+                </div>
+              </div>
+              {/* Radio dot */}
+              <div style={{
+                width: 18,
+                height: 18,
+                borderRadius: '50%',
+                border: isSelected ? 'none' : '2px solid #D2B48C',
+                background: isSelected ? '#8B4513' : 'transparent',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+                transition: 'background 0.15s, border 0.15s',
+              }}>
+                {isSelected && (
+                  <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#fff' }} />
+                )}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Error message */}
+      {submitError && (
+        <p style={{
+          margin: '12px 0 0',
+          fontSize: 13,
+          color: '#cc3300',
+          fontFamily: 'system-ui, sans-serif',
+        }}>
+          {submitError}
+        </p>
+      )}
+
+      {/* Buttons */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 24 }}>
+        <button
+          onClick={onBack}
+          disabled={isLoading}
+          style={{
+            padding: '11px 28px',
+            borderRadius: 8,
+            border: '1.5px solid #8B4513',
+            background: 'transparent',
+            color: '#8B4513',
+            fontFamily: 'Comfortaa, system-ui, sans-serif',
+            fontWeight: 600,
+            fontSize: 15,
+            cursor: isLoading ? 'not-allowed' : 'pointer',
+            opacity: isLoading ? 0.6 : 1,
+          }}
+        >
+          Back
+        </button>
+        <button
+          onClick={handleLaunch}
+          disabled={!canSubmit}
+          style={{
+            padding: '11px 32px',
+            borderRadius: 8,
+            border: 'none',
+            fontFamily: 'Comfortaa, system-ui, sans-serif',
+            fontWeight: 600,
+            fontSize: 15,
+            cursor: canSubmit ? 'pointer' : 'not-allowed',
+            background: canSubmit ? '#FF8C00' : '#D2B48C',
+            color: canSubmit ? '#fff' : '#4A2C2A',
+            transition: 'background 0.15s',
+          }}
+        >
+          {isLoading ? 'Setting up...' : 'Launch Dashboard'}
+        </button>
+      </div>
     </div>
   )
 }
@@ -690,7 +928,13 @@ export function Onboarding() {
             )}
 
             {currentStep === 3 && (
-              <Step3Placeholder onBack={() => setCurrentStep(2)} />
+              <Step3Form
+                tenantId={tenantId}
+                companyName={companyData.companyName}
+                websiteUrl={companyData.website}
+                selectedPlatforms={selectedPlatforms}
+                onBack={() => setCurrentStep(2)}
+              />
             )}
           </div>
         </div>
