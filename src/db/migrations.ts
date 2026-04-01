@@ -242,6 +242,21 @@ async function runMultiTenantMigrations(): Promise<void> {
   `);
 
   console.log('  ✅ selected_platforms column ensured on tenant_settings');
+
+  // 12. Add onboarding columns to tenants table if not exists
+  // Note: brand_url already exists on tenants — reused as website_url
+  // Note: onboarding_complete already exists on tenant_settings — also adding to tenants for direct lookup
+  await pool.query(`
+    ALTER TABLE tenants
+    ADD COLUMN IF NOT EXISTS north_star TEXT
+  `);
+
+  await pool.query(`
+    ALTER TABLE tenants
+    ADD COLUMN IF NOT EXISTS onboarding_complete BOOLEAN DEFAULT false
+  `);
+
+  console.log('  ✅ north_star and onboarding_complete columns ensured on tenants');
   console.log('✅ Multi-tenant schema migrations complete');
 }
 

@@ -3,6 +3,77 @@ import { pool } from '../db/cache';
 
 const router = Router();
 
+const VALID_NORTH_STARS = ['brand_awareness', 'engagement', 'lead_generation', 'roas', 'traffic'];
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// GET /api/onboarding/tenant?clerk_id={clerk_user_id}
+router.get('/tenant', async (req: Request, res: Response) => {
+  const { clerk_id } = req.query;
+
+  if (!clerk_id) {
+    return res.status(400).json({ error: 'clerk_id is required' });
+  }
+
+  try {
+    const result = await pool.query(
+      `SELECT tenant_id FROM users WHERE clerk_id = $1`,
+      [clerk_id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    return res.json({ tenant_id: result.rows[0].tenant_id });
+  } catch (err) {
+    console.error('Error fetching tenant by clerk_id:', err);
+    return res.status(500).json({ error: 'Failed to fetch tenant' });
+  }
+});
+
+// POST /api/onboarding/complete
+router.post('/complete', async (req: Request, res: Response) => {
+  const { tenant_id, company_name, website_url, selected_platforms, north_star } = req.body;
+
+  if (!tenant_id || !UUID_REGEX.test(tenant_id)) {
+    return res.status(400).json({ error: 'tenant_id is required and must be a valid UUID' });
+  }
+
+  if (!north_star || !VALID_NORTH_STARS.includes(north_star)) {
+    return res.status(400).json({ error: `north_star must be one of: ${VALID_NORTH_STARS.join(', ')}` });
+  }
+
+  if (!Array.isArray(selected_platforms) || selected_platforms.length === 0) {
+    return res.status(400).json({ error: 'selected_platforms must be a non-empty array' });
+  }
+
+  try {
+    await pool.query(
+      `UPDATE tenants
+       SET brand_name = COALESCE($2, brand_name),
+           brand_url = COALESCE($3, brand_url),
+           north_star = $4,
+           onboarding_complete = true,
+           updated_at = NOW()
+       WHERE id = $1`,
+      [tenant_id, company_name || null, website_url || null, north_star]
+    );
+
+    await pool.query(
+      `INSERT INTO tenant_settings (tenant_id, selected_platforms, onboarding_complete, updated_at)
+       VALUES ($1, $2, true, NOW())
+       ON CONFLICT (tenant_id) DO UPDATE
+       SET selected_platforms = $2, onboarding_complete = true, updated_at = NOW()`,
+      [tenant_id, JSON.stringify(selected_platforms)]
+    );
+
+    return res.json({ success: true });
+  } catch (err) {
+    console.error('Error completing onboarding:', err);
+    return res.status(500).json({ error: 'Failed to complete onboarding' });
+  }
+});
+
 // GET /api/onboarding/status?tenant_id={uuid}
 router.get('/status', async (req: Request, res: Response) => {
   const { tenant_id } = req.query;
@@ -12,7 +83,7 @@ router.get('/status', async (req: Request, res: Response) => {
   }
 
   try {
-    const [connectionsResult, stakeholdersResult, settingsResult] = await Promise.all([
+    const [connectionsResult, stakeholdersResult, settingsResult, tenantResult] = await Promise.all([
       pool.query(
         `SELECT platform FROM tenant_connections WHERE tenant_id = $1 AND access_token IS NOT NULL`,
         [tenant_id]
@@ -22,17 +93,26 @@ router.get('/status', async (req: Request, res: Response) => {
         [tenant_id]
       ),
       pool.query(
-        `SELECT onboarding_complete FROM tenant_settings WHERE tenant_id = $1`,
+        `SELECT onboarding_complete, selected_platforms FROM tenant_settings WHERE tenant_id = $1`,
+        [tenant_id]
+      ),
+      pool.query(
+        `SELECT brand_name, brand_url, north_star, onboarding_complete FROM tenants WHERE id = $1`,
         [tenant_id]
       ),
     ]);
 
     const connectedPlatforms = connectionsResult.rows.map((r: any) => r.platform);
     const hasStakeholders = parseInt(stakeholdersResult.rows[0].count, 10) > 0;
-    const onboardingComplete = settingsResult.rows[0]?.onboarding_complete ?? false;
+    const onboardingComplete =
+      tenantResult.rows[0]?.onboarding_complete ?? settingsResult.rows[0]?.onboarding_complete ?? false;
 
     return res.json({
       onboarding_complete: onboardingComplete,
+      company_name: tenantResult.rows[0]?.brand_name || null,
+      website_url: tenantResult.rows[0]?.brand_url || null,
+      selected_platforms: settingsResult.rows[0]?.selected_platforms || [],
+      north_star: tenantResult.rows[0]?.north_star || null,
       connections: {
         google: connectedPlatforms.includes('google'),
         meta: connectedPlatforms.includes('meta'),
