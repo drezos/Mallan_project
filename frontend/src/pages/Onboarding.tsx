@@ -303,6 +303,8 @@ export function Onboarding() {
       .finally(() => setTenantLoading(false))
   }, [clerkId])
 
+  console.log('tenant_id:', tenantId)
+
   // ── Loading spinner (while resolving tenant_id) ──────────────────────────
   if (tenantLoading || !clerkId) {
     return (
