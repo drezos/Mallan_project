@@ -13,6 +13,7 @@ import authRoutes, { debugRouter } from './routes/auth';
 import webhooksRouter from './routes/webhooks';
 import dashboardRouter from './routes/dashboard';
 import onboardingRouter from './routes/onboarding';
+import connectionsRouter from './routes/connections';
 
 // Import cache service for initialization
 import { cacheService } from './db/cache';
@@ -45,6 +46,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/debug', debugRouter);
 app.use('/api/dashboard', dashboardRouter);
 app.use('/api/onboarding', onboardingRouter);
+app.use('/api/connections', connectionsRouter);
 
 // Root endpoint
 app.get('/', (req, res) => {
