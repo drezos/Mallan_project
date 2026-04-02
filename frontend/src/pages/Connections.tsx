@@ -101,8 +101,8 @@ export function Connections() {
 
   // Auto-close modal when a new platform gets connected (e.g. after OAuth redirect)
   useEffect(() => {
-    if (showModal && prevStatusRef.current && status) {
-      const prev = prevStatusRef.current;
+    const prev = prevStatusRef.current;
+    if (showModal && prev && status) {
       if (
         (!prev.google && status.google) ||
         (!prev.meta && status.meta) ||
