@@ -67,6 +67,8 @@ export function Connections() {
   const [status, setStatus] = useState<ConnectionStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [disconnecting, setDisconnecting] = useState<string | null>(null);
+  const [confirmDisconnect, setConfirmDisconnect] = useState<string | null>(null);
   const prevStatusRef = useRef<ConnectionStatus | null>(null);
 
   // If redirected back from OAuth with ?connected={platform}, apply it immediately
@@ -141,6 +143,25 @@ export function Connections() {
   const handleConnect = (platform: string) => {
     if (!tenantId) return;
     window.location.href = `${import.meta.env.VITE_API_URL}/api/auth/connect/${platform}?tenant_id=${tenantId}`;
+  };
+
+  const handleDisconnect = async (platform: string) => {
+    if (!tenantId) return;
+    setDisconnecting(platform);
+    try {
+      const res = await fetch(
+        `${import.meta.env.VITE_API_URL}/api/auth/disconnect/${platform}?tenant_id=${tenantId}`,
+        { method: 'DELETE' }
+      );
+      if (res.ok) {
+        setStatus((prev) => prev ? { ...prev, [platform]: false } : prev);
+      }
+    } catch {
+      // disconnect failed silently
+    } finally {
+      setDisconnecting(null);
+      setConfirmDisconnect(null);
+    }
   };
 
   // Auto-close modal when a new platform gets connected (e.g. after OAuth redirect)
@@ -603,27 +624,66 @@ export function Connections() {
               </div>
             </div>
 
-            {/* Right: green dot + Connected */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-              <div
+            {/* Right: status + actions */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexShrink: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div
+                  style={{
+                    width: '8px',
+                    height: '8px',
+                    borderRadius: '50%',
+                    background: '#228B22',
+                    flexShrink: 0,
+                  }}
+                />
+                <span
+                  style={{
+                    fontFamily: 'system-ui, sans-serif',
+                    color: '#228B22',
+                    fontSize: '0.875rem',
+                    fontWeight: 500,
+                  }}
+                >
+                  Connected
+                </span>
+              </div>
+              <button
+                onClick={() => handleConnect(platform.key)}
                 style={{
-                  width: '8px',
-                  height: '8px',
-                  borderRadius: '50%',
-                  background: '#228B22',
-                  flexShrink: 0,
-                }}
-              />
-              <span
-                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
                   fontFamily: 'system-ui, sans-serif',
-                  color: '#228B22',
-                  fontSize: '0.875rem',
-                  fontWeight: 500,
+                  fontSize: '0.8rem',
+                  color: '#6B5B5B',
+                  padding: '4px 8px',
+                  borderRadius: '4px',
                 }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = '#4A2C2A'; (e.currentTarget as HTMLButtonElement).style.background = '#F5F0E8'; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = '#6B5B5B'; (e.currentTarget as HTMLButtonElement).style.background = 'none'; }}
+                title="Reconnect — re-authorize this platform"
               >
-                Connected
-              </span>
+                Reconnect
+              </button>
+              <button
+                onClick={() => setConfirmDisconnect(platform.key)}
+                disabled={disconnecting === platform.key}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: disconnecting === platform.key ? 'default' : 'pointer',
+                  fontFamily: 'system-ui, sans-serif',
+                  fontSize: '0.8rem',
+                  color: disconnecting === platform.key ? '#ccc' : '#C0392B',
+                  padding: '4px 8px',
+                  borderRadius: '4px',
+                  opacity: disconnecting === platform.key ? 0.6 : 1,
+                }}
+                onMouseEnter={(e) => { if (disconnecting !== platform.key) (e.currentTarget as HTMLButtonElement).style.background = '#FDF2F2'; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'none'; }}
+              >
+                {disconnecting === platform.key ? 'Disconnecting…' : 'Disconnect'}
+              </button>
             </div>
           </div>
         ))}
@@ -643,6 +703,89 @@ export function Connections() {
         >
           Connect more platforms to see all your data in one place.
         </p>
+      )}
+      {/* Disconnect confirmation dialog */}
+      {confirmDisconnect && (
+        <div
+          onClick={() => setConfirmDisconnect(null)}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0,0,0,0.4)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: '#fff',
+              borderRadius: '12px',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+              maxWidth: '400px',
+              width: '90%',
+              padding: '28px',
+            }}
+          >
+            <h3 style={{
+              fontFamily: "'Comfortaa', sans-serif",
+              fontWeight: 600,
+              color: '#4A2C2A',
+              fontSize: '1.1rem',
+              margin: '0 0 12px 0',
+            }}>
+              Disconnect {platforms.find((p) => p.key === confirmDisconnect)?.title}?
+            </h3>
+            <p style={{
+              fontFamily: 'system-ui, sans-serif',
+              color: '#6B5B5B',
+              fontSize: '0.9rem',
+              margin: '0 0 24px 0',
+              lineHeight: 1.5,
+            }}>
+              You'll need to reconnect to see this data.
+            </p>
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setConfirmDisconnect(null)}
+                style={{
+                  background: 'none',
+                  border: '1px solid #D2B48C',
+                  borderRadius: '8px',
+                  padding: '8px 20px',
+                  fontFamily: 'system-ui, sans-serif',
+                  color: '#4A2C2A',
+                  fontSize: '0.875rem',
+                  cursor: 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleDisconnect(confirmDisconnect)}
+                disabled={disconnecting !== null}
+                style={{
+                  background: '#C0392B',
+                  border: 'none',
+                  borderRadius: '8px',
+                  padding: '8px 20px',
+                  fontFamily: 'system-ui, sans-serif',
+                  color: '#fff',
+                  fontSize: '0.875rem',
+                  cursor: disconnecting ? 'default' : 'pointer',
+                  opacity: disconnecting ? 0.7 : 1,
+                }}
+              >
+                {disconnecting ? 'Disconnecting…' : 'Disconnect'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
       {modalContent}
     </div>
