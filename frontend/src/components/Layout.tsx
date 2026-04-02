@@ -2,13 +2,15 @@ import { Outlet, NavLink, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard,
   Bell,
-  ChevronRight
+  ChevronRight,
+  Link2
 } from 'lucide-react'
 import { UserButton } from '@clerk/clerk-react'
 import { cn } from '../lib/utils'
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
+  { name: 'Connections', href: '/connections', icon: Link2 },
 ]
 
 export function Layout() {
@@ -17,7 +19,7 @@ export function Layout() {
   // Get current page title
   const currentPage = navigation.find(
     item => item.href === location.pathname
-  )?.name || 'Dashboard'
+  )?.name || location.pathname.slice(1).replace(/^\w/, c => c.toUpperCase()) || 'Dashboard'
 
   return (
     <div className="min-h-screen bg-brew-beige">
