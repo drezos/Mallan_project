@@ -85,7 +85,7 @@ router.get('/callback/google', async (req: Request, res: Response) => {
     console.log(`✅ Google tokens saved to tenant_connections for tenant ${tenant_id}`);
 
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-    res.redirect(`${frontendUrl}/dashboard?connected=google`);
+    res.redirect(`${frontendUrl}/connections?connected=google`);
 
   } catch (error) {
     console.error('Google OAuth error:', error instanceof Error ? error.stack : error);
@@ -174,7 +174,7 @@ router.get('/callback/meta', async (req: Request, res: Response) => {
     console.log(`✅ Meta long-lived token saved to tenant_connections for tenant ${tenant_id}`);
 
     const frontendUrl = process.env.FRONTEND_URL || 'https://mallan-project.vercel.app';
-    res.redirect(`${frontendUrl}/dashboard?connected=meta`);
+    res.redirect(`${frontendUrl}/connections?connected=meta`);
 
   } catch (error) {
     console.error('Meta OAuth error:', error instanceof Error ? error.stack : error);
@@ -253,7 +253,7 @@ router.get('/callback/linkedin', async (req: Request, res: Response) => {
     console.log(`✅ LinkedIn token saved to tenant_connections for tenant ${tenant_id}`);
 
     const frontendUrl = process.env.FRONTEND_URL || 'https://mallan-project.vercel.app';
-    res.redirect(`${frontendUrl}/dashboard?connected=linkedin`);
+    res.redirect(`${frontendUrl}/connections?connected=linkedin`);
 
   } catch (error) {
     console.error('LinkedIn OAuth error:', error instanceof Error ? error.stack : error);

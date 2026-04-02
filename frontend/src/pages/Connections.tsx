@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useUser } from '@clerk/clerk-react';
+import { useSearchParams } from 'react-router-dom';
 
 interface ConnectionStatus {
   google: boolean;
@@ -59,6 +60,7 @@ const platforms = [
 
 export function Connections() {
   const { user, isLoaded: isUserLoaded } = useUser();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [tenantId, setTenantId] = useState<string | undefined>(undefined);
   const [tenantLoading, setTenantLoading] = useState(true);
 
@@ -66,6 +68,9 @@ export function Connections() {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const prevStatusRef = useRef<ConnectionStatus | null>(null);
+
+  // If redirected back from OAuth with ?connected={platform}, apply it immediately
+  const connectedParam = searchParams.get('connected') as keyof ConnectionStatus | null;
 
   // Resolve tenant_id from Clerk user
   useEffect(() => {
@@ -96,22 +101,37 @@ export function Connections() {
     }
     try {
       const res = await fetch(
-        `${import.meta.env.VITE_API_URL}/api/onboarding/status?tenant_id=${tenantId}`
+        `${import.meta.env.VITE_API_URL}/api/connections?tenant_id=${tenantId}`
       );
       if (res.ok) {
-        const data = await res.json();
-        setStatus(data.connections ?? data);
+        const data: ConnectionStatus = await res.json();
+        // Merge the ?connected= param so the just-connected platform shows immediately
+        if (connectedParam && (connectedParam === 'google' || connectedParam === 'meta' || connectedParam === 'linkedin')) {
+          data[connectedParam] = true;
+        }
+        setStatus(data);
       }
     } catch {
       // silently fail — status stays null
     } finally {
       setLoading(false);
     }
-  }, [tenantId]);
+  }, [tenantId, connectedParam]);
 
   useEffect(() => {
     fetchStatus();
   }, [fetchStatus]);
+
+  // Clean up the ?connected= param from the URL after status is loaded
+  useEffect(() => {
+    if (connectedParam && status) {
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete('connected');
+        return next;
+      }, { replace: true });
+    }
+  }, [connectedParam, status, setSearchParams]);
 
   useEffect(() => {
     window.addEventListener('focus', fetchStatus);
