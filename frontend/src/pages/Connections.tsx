@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, type ReactNode } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
 interface ConnectionStatus {
@@ -119,7 +119,7 @@ export function Connections() {
   const allConnected = status !== null && status.google && status.meta && status.linkedin;
 
   // Individual platform cards for the modal
-  const modalPlatforms: { key: string; label: string; color: string; icon: JSX.Element }[] = [];
+  const modalPlatforms: { key: string; label: string; color: string; icon: ReactNode }[] = [];
 
   if (!status?.google) {
     modalPlatforms.push(
