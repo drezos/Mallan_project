@@ -4,6 +4,7 @@ import { Layout } from './components/Layout'
 import { Dashboard } from './pages/Dashboard'
 import { Alerts } from './pages/Alerts'
 import { Settings } from './pages/Settings'
+import { Connections } from './pages/Connections'
 import { Onboarding } from './pages/Onboarding'
 import { VolumeViewProvider } from './contexts/VolumeViewContext'
 
@@ -22,6 +23,7 @@ function App() {
             <Route path="/" element={<Layout />}>
               <Route index element={<Dashboard />} />
               <Route path="alerts" element={<Alerts />} />
+              <Route path="connections" element={<Connections />} />
               <Route path="settings" element={<Settings />} />
             </Route>
           </Routes>
