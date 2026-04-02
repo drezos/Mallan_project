@@ -102,7 +102,7 @@ export function Connections() {
   // Suppress unused warning — modal wiring comes in next PR
   void handleConnect;
 
-  const connectedPlatforms = platforms.filter((p) => status?.[p.key]);
+  const connectedPlatforms = platforms.filter((p) => status?.[p.key as keyof ConnectionStatus]);
   const anyConnected = connectedPlatforms.length > 0;
   const allConnected = status !== null && status.google && status.meta && status.linkedin;
 
