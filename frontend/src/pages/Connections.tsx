@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useUser } from '@clerk/clerk-react';
 
 interface ConnectionStatus {
   google: boolean;
@@ -58,13 +58,36 @@ const platforms = [
 ];
 
 export function Connections() {
-  const [searchParams] = useSearchParams();
-  const tenantId = searchParams.get('tenant') || undefined;
+  const { user, isLoaded: isUserLoaded } = useUser();
+  const [tenantId, setTenantId] = useState<string | undefined>(undefined);
+  const [tenantLoading, setTenantLoading] = useState(true);
 
   const [status, setStatus] = useState<ConnectionStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const prevStatusRef = useRef<ConnectionStatus | null>(null);
+
+  // Resolve tenant_id from Clerk user
+  useEffect(() => {
+    if (!isUserLoaded || !user?.id) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(
+          `${import.meta.env.VITE_API_URL}/api/onboarding/tenant?clerk_id=${user.id}`
+        );
+        if (res.ok) {
+          const data = await res.json();
+          if (!cancelled) setTenantId(data.tenant_id);
+        }
+      } catch {
+        // tenant lookup failed
+      } finally {
+        if (!cancelled) setTenantLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [isUserLoaded, user?.id]);
 
   const fetchStatus = useCallback(async () => {
     if (!tenantId) {
@@ -96,6 +119,7 @@ export function Connections() {
   }, [fetchStatus]);
 
   const handleConnect = (platform: string) => {
+    if (!tenantId) return;
     window.location.href = `${import.meta.env.VITE_API_URL}/api/auth/connect/${platform}?tenant_id=${tenantId}`;
   };
 
@@ -372,7 +396,7 @@ export function Connections() {
     </div>
   ) : null;
 
-  if (loading) {
+  if (tenantLoading || loading) {
     return (
       <div
         style={{
