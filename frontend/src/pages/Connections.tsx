@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
 interface ConnectionStatus {
@@ -64,7 +64,7 @@ export function Connections() {
   const [status, setStatus] = useState<ConnectionStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
-  void showModal; // consumed by next PR's modal
+  const prevStatusRef = useRef<ConnectionStatus | null>(null);
 
   const fetchStatus = useCallback(async () => {
     if (!tenantId) {
@@ -99,12 +99,278 @@ export function Connections() {
     window.location.href = `${import.meta.env.VITE_API_URL}/api/auth/connect/${platform}?tenant_id=${tenantId}`;
   };
 
-  // Suppress unused warning — modal wiring comes in next PR
-  void handleConnect;
+  // Auto-close modal when a new platform gets connected (e.g. after OAuth redirect)
+  useEffect(() => {
+    if (showModal && prevStatusRef.current && status) {
+      const prev = prevStatusRef.current;
+      if (
+        (!prev.google && status.google) ||
+        (!prev.meta && status.meta) ||
+        (!prev.linkedin && status.linkedin)
+      ) {
+        setShowModal(false);
+      }
+    }
+    prevStatusRef.current = status;
+  }, [status, showModal]);
 
   const connectedPlatforms = platforms.filter((p) => status?.[p.key as keyof ConnectionStatus]);
   const anyConnected = connectedPlatforms.length > 0;
   const allConnected = status !== null && status.google && status.meta && status.linkedin;
+
+  // Individual platform cards for the modal
+  const modalPlatforms: { key: string; label: string; color: string; icon: JSX.Element }[] = [];
+
+  if (!status?.google) {
+    modalPlatforms.push(
+      {
+        key: 'google', label: 'Google Analytics', color: '#E37400',
+        icon: (
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <rect x="2" y="13" width="5" height="7" rx="1" fill="#E37400" />
+            <rect x="9.5" y="8" width="5" height="12" rx="1" fill="#E37400" />
+            <rect x="17" y="4" width="5" height="16" rx="1" fill="#E37400" />
+          </svg>
+        ),
+      },
+      {
+        key: 'google', label: 'Google Ads', color: '#4285F4',
+        icon: (
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <polygon points="5,3 21,12 5,21" fill="#4285F4" />
+          </svg>
+        ),
+      },
+      {
+        key: 'google', label: 'Google Search Console', color: '#4285F4',
+        icon: (
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <circle cx="10" cy="10" r="6" stroke="#4285F4" strokeWidth="2.5" fill="none" />
+            <line x1="14.8" y1="14.8" x2="21" y2="21" stroke="#4285F4" strokeWidth="2.5" strokeLinecap="round" />
+          </svg>
+        ),
+      },
+    );
+  }
+
+  if (!status?.meta) {
+    modalPlatforms.push(
+      {
+        key: 'meta', label: 'Meta Ads', color: '#0081FB',
+        icon: (
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <path d="M12 12C11 9.5 9 7.5 6.5 7.5C4 7.5 2 9.5 2 12C2 14.5 4 16.5 6.5 16.5C9 16.5 11 14.5 12 12Z" stroke="#0081FB" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M12 12C13 14.5 15 16.5 17.5 16.5C20 16.5 22 14.5 22 12C22 9.5 20 7.5 17.5 7.5C15 7.5 13 9.5 12 12Z" stroke="#0081FB" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        ),
+      },
+      {
+        key: 'meta', label: 'Facebook', color: '#1877F2',
+        icon: (
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <path d="M13 21v-8h2.6l.4-3H13V8.5C13 7.7 13.3 7 14.5 7H16V4.2C15.2 4.1 14.3 4 13.2 4 10.8 4 9.5 5.4 9.5 8.3V10H7v3h2.5v8H13z" fill="#1877F2" />
+          </svg>
+        ),
+      },
+      {
+        key: 'meta', label: 'Instagram', color: '#E4405F',
+        icon: (
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <rect x="3" y="3" width="18" height="18" rx="5" stroke="#E4405F" strokeWidth="2" />
+            <circle cx="12" cy="12" r="4" stroke="#E4405F" strokeWidth="2" />
+            <circle cx="17.5" cy="6.5" r="1.2" fill="#E4405F" />
+          </svg>
+        ),
+      },
+    );
+  }
+
+  if (!status?.linkedin) {
+    modalPlatforms.push(
+      {
+        key: 'linkedin', label: 'LinkedIn Ads', color: '#0A66C2',
+        icon: (
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <rect x="3" y="9" width="4" height="12" fill="#0A66C2" />
+            <circle cx="5" cy="5" r="2.5" fill="#0A66C2" />
+            <path d="M11 9h3.5v1.6C15 9.6 16.3 9 17.8 9 20.5 9 21 10.8 21 13.5V21h-3.5v-6.5c0-1.6-.5-2.5-1.8-2.5-1.5 0-2.2 1-2.2 2.7V21H11V9z" fill="#0A66C2" />
+          </svg>
+        ),
+      },
+      {
+        key: 'linkedin', label: 'LinkedIn', color: '#0A66C2',
+        icon: (
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <rect x="3" y="9" width="4" height="12" fill="#0A66C2" />
+            <circle cx="5" cy="5" r="2.5" fill="#0A66C2" />
+            <path d="M11 9h3.5v1.6C15 9.6 16.3 9 17.8 9 20.5 9 21 10.8 21 13.5V21h-3.5v-6.5c0-1.6-.5-2.5-1.8-2.5-1.5 0-2.2 1-2.2 2.7V21H11V9z" fill="#0A66C2" />
+          </svg>
+        ),
+      },
+    );
+  }
+
+  const modalContent = showModal ? (
+    <div
+      onClick={() => setShowModal(false)}
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        background: 'rgba(0,0,0,0.4)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 1000,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: '#fff',
+          borderRadius: '16px',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+          maxWidth: '560px',
+          width: '90%',
+          padding: '32px',
+          position: 'relative',
+        }}
+      >
+        {/* Close button */}
+        <button
+          onClick={() => setShowModal(false)}
+          style={{
+            position: 'absolute',
+            top: '16px',
+            right: '16px',
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            padding: '4px',
+            color: '#6B5B5B',
+            lineHeight: 1,
+          }}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = '#4A2C2A'; }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = '#6B5B5B'; }}
+          aria-label="Close modal"
+        >
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <line x1="4" y1="4" x2="16" y2="16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+            <line x1="16" y1="4" x2="4" y2="16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          </svg>
+        </button>
+
+        {/* Header */}
+        <h2 style={{
+          fontFamily: "'Comfortaa', sans-serif",
+          fontWeight: 600,
+          color: '#4A2C2A',
+          fontSize: '1.25rem',
+          margin: '0 0 4px 0',
+        }}>
+          Connect new source
+        </h2>
+        <p style={{
+          fontFamily: 'system-ui, sans-serif',
+          color: '#6B5B5B',
+          fontSize: '0.9rem',
+          margin: '0 0 24px 0',
+        }}>
+          Select a platform to connect
+        </p>
+
+        {/* All connected state */}
+        {allConnected ? (
+          <div style={{ textAlign: 'center', padding: '24px 0' }}>
+            <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+              <circle cx="24" cy="24" r="20" fill="none" stroke="#228B22" strokeWidth="3" />
+              <path d="M15 24l6 6 12-12" stroke="#228B22" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+            </svg>
+            <p style={{
+              fontFamily: "'Comfortaa', sans-serif",
+              fontWeight: 600,
+              color: '#228B22',
+              fontSize: '1.1rem',
+              margin: '16px 0 20px 0',
+            }}>
+              All platforms connected!
+            </p>
+            <button
+              onClick={() => setShowModal(false)}
+              style={{
+                background: 'none',
+                border: '1px solid #D2B48C',
+                borderRadius: '8px',
+                padding: '10px 28px',
+                fontFamily: 'system-ui, sans-serif',
+                color: '#4A2C2A',
+                fontSize: '0.9rem',
+                cursor: 'pointer',
+              }}
+            >
+              Close
+            </button>
+          </div>
+        ) : (
+          /* Platform grid */
+          <div className="modal-platform-grid" style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(4, 1fr)',
+            gap: '16px',
+          }}>
+            <style>{`
+              @media (max-width: 600px) {
+                .modal-platform-grid { grid-template-columns: repeat(2, 1fr) !important; }
+              }
+            `}</style>
+            {modalPlatforms.map((p, i) => (
+              <div
+                key={`${p.key}-${i}`}
+                onClick={() => {
+                  setShowModal(false);
+                  handleConnect(p.key);
+                }}
+                className="modal-platform-card"
+                style={{
+                  background: '#fff',
+                  border: '1px solid #E8DCC8',
+                  borderRadius: '12px',
+                  padding: '20px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  cursor: 'pointer',
+                  transition: 'border-color 0.15s, box-shadow 0.15s',
+                }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLDivElement).style.borderColor = '#8B4513';
+                  (e.currentTarget as HTMLDivElement).style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLDivElement).style.borderColor = '#E8DCC8';
+                  (e.currentTarget as HTMLDivElement).style.boxShadow = 'none';
+                }}
+              >
+                {p.icon}
+                <span style={{
+                  fontFamily: 'system-ui, sans-serif',
+                  fontSize: '14px',
+                  color: '#4A2C2A',
+                  marginTop: '8px',
+                  textAlign: 'center',
+                  lineHeight: 1.3,
+                }}>
+                  {p.label}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  ) : null;
 
   if (loading) {
     return (
@@ -184,6 +450,7 @@ export function Connections() {
         >
           + Connect new source
         </button>
+        {modalContent}
       </div>
     );
   }
@@ -333,6 +600,7 @@ export function Connections() {
           Connect more platforms to see all your data in one place.
         </p>
       )}
+      {modalContent}
     </div>
   );
 }
