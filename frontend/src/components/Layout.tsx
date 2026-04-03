@@ -65,20 +65,6 @@ export function Layout() {
           })}
         </nav>
 
-        {/* Bottom section - Brand info */}
-        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-slate-100">
-          <div className="bg-slate-50 rounded-lg p-3">
-            <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">
-              Tracking
-            </p>
-            <p className="text-sm font-semibold text-slate-900 mt-1">
-              Jacks.nl
-            </p>
-            <p className="text-xs text-slate-500 mt-0.5">
-              vs 5 competitors
-            </p>
-          </div>
-        </div>
       </aside>
 
       {/* Main content area */}
