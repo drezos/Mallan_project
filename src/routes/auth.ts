@@ -261,6 +261,39 @@ router.get('/callback/linkedin', async (req: Request, res: Response) => {
   }
 });
 
+// DELETE /api/auth/disconnect/:platform?tenant_id=<uuid>
+// Removes the stored OAuth connection for a given tenant + platform.
+router.delete('/disconnect/:platform', async (req: Request, res: Response) => {
+  const { platform } = req.params;
+  const { tenant_id } = req.query;
+
+  if (!tenant_id) {
+    return res.status(400).json({ error: 'tenant_id is required' });
+  }
+
+  const validPlatforms = ['google', 'meta', 'linkedin'];
+  if (!validPlatforms.includes(platform)) {
+    return res.status(400).json({ error: `Invalid platform. Must be one of: ${validPlatforms.join(', ')}` });
+  }
+
+  try {
+    const result = await pool.query(
+      `DELETE FROM tenant_connections WHERE tenant_id = $1 AND platform = $2`,
+      [tenant_id, platform]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Connection not found' });
+    }
+
+    console.log(`✅ Disconnected ${platform} for tenant ${tenant_id}`);
+    return res.json({ success: true });
+  } catch (error) {
+    console.error(`Error disconnecting ${platform}:`, error);
+    return res.status(500).json({ error: 'Failed to disconnect platform' });
+  }
+});
+
 // Test endpoint: GET /api/auth/test-ga4?tenant_id=<uuid>
 router.get('/test-ga4', async (req: Request, res: Response) => {
   const { tenant_id } = req.query;
