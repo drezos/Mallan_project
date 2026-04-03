@@ -25,11 +25,12 @@ const META_SCOPES = [
   'read_insights',
 ];
 
+// TODO: Add r_ads, r_ads_reporting when LinkedIn Advertising API is approved
 const LINKEDIN_SCOPES = [
-  'r_ads_reporting',
-  'r_ads',
-  'r_basicprofile',
-  'r_organization_social',
+  'openid',
+  'profile',
+  'email',
+  'w_member_social',
 ];
 
 // Step 1: Send user to Google login page
