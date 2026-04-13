@@ -1,12 +1,12 @@
 import { Router, Request, Response } from 'express';
 import { pool } from '../db/cache';
-import { getGa4Metrics } from '../services/ga4Client';
 import { getGoogleAdsMetrics } from '../services/googleAdsClient';
 import { getSearchConsoleMetrics } from '../services/searchConsoleClient';
 import { getMetaAdsMetrics } from '../services/metaAdsClient';
 import { getMetaSocialMetrics } from '../services/metaSocialClient';
 import { getLinkedInAdsMetrics } from '../services/linkedinAdsClient';
 import { getLinkedInSocialMetrics } from '../services/linkedinSocialClient';
+import { getWebsitePillar, WebsitePillar } from '../services/websitePillar';
 
 const router = Router();
 
@@ -14,7 +14,7 @@ const CACHE_KEY = 'tenant_dashboard';
 const CACHE_DURATION_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 const DEFAULT_ADS = { spend: 0, cpa: 0, roas: 0, conversions: 0, ctr: 0, clicks: 0, impressions: 0, google: { spend: 0, cpa: 0, roas: 0, conversions: 0, ctr: 0, clicks: 0, impressions: 0 }, meta: { spend: 0, cpa: 0, roas: 0, conversions: 0, ctr: 0, clicks: 0, impressions: 0 }, linkedin: { spend: 0, cpa: 0, roas: 0, conversions: 0, ctr: 0, clicks: 0, impressions: 0 } };
-const DEFAULT_WEBSITE = { sessions: 0, users: 0, newUsers: 0, bounceRate: 0, topSources: [] as Array<{ source: string; sessions: number }> };
+const DEFAULT_WEBSITE: WebsitePillar = { connected: false };
 const DEFAULT_BRAND = { impressions: 0, clicks: 0, avgPosition: 0, topQueries: [] as any[] };
 const DEFAULT_SOCIAL = { reach: 0, impressions: 0, engagementRate: 0, followerGrowth: 0, platforms: { facebook: { impressions: 0, engagedUsers: 0, fans: 0 }, instagram: { impressions: 0, reach: 0, followerCount: 0 }, linkedin: { impressions: 0, reach: 0, engagementRate: 0, followerCount: 0 } } };
 const DEFAULT_LINKEDIN_SOCIAL = { impressions: 0, reach: 0, engagementRate: 0, followerCount: 0 };
@@ -22,7 +22,7 @@ const DEFAULT_LINKEDIN_SOCIAL = { impressions: 0, reach: 0, engagementRate: 0, f
 async function fetchFreshDashboardData(tenantId: string) {
   // Fetch all sources in parallel — if one fails, others still return data
   const [websiteResult, adsResult, brandResult, metaAdsResult, metaSocialResult, linkedinAdsResult, linkedinSocialResult] = await Promise.allSettled([
-    getGa4Metrics(tenantId),
+    getWebsitePillar(tenantId),
     getGoogleAdsMetrics(tenantId),
     getSearchConsoleMetrics(tenantId),
     getMetaAdsMetrics(tenantId),
@@ -31,10 +31,9 @@ async function fetchFreshDashboardData(tenantId: string) {
     getLinkedInSocialMetrics(tenantId),
   ]);
 
-  let website = DEFAULT_WEBSITE;
+  let website: WebsitePillar = DEFAULT_WEBSITE;
   if (websiteResult.status === 'fulfilled') {
-    const w = websiteResult.value;
-    website = { sessions: w.sessions, users: w.users, newUsers: w.newUsers, bounceRate: w.bounceRate, topSources: w.topSources };
+    website = websiteResult.value;
   } else {
     console.error('[dashboard] GA4 error for tenant', tenantId, ':', websiteResult.reason);
   }
@@ -126,7 +125,9 @@ router.get('/', async (req: Request, res: Response) => {
     return res.status(400).json({ error: 'tenant_id query parameter is required' });
   }
 
-  // Check tenant cache first
+  // Check tenant cache first (24-hour outer cache covers ads / brand / social).
+  // The website pillar has its own 1-hour cache, so we always re-fetch it and
+  // overlay it on top of whatever the outer cache contains.
   try {
     const cached = await pool.query(
       `SELECT data, expires_at, (expires_at < NOW()) as is_expired
@@ -137,7 +138,14 @@ router.get('/', async (req: Request, res: Response) => {
 
     if (cached.rows.length > 0 && !cached.rows[0].is_expired) {
       console.log(`[dashboard] Serving cached data for tenant ${tenantId}`);
-      return res.json(cached.rows[0].data);
+      const cachedData = cached.rows[0].data;
+      let website: WebsitePillar = DEFAULT_WEBSITE;
+      try {
+        website = await getWebsitePillar(tenantId);
+      } catch (err) {
+        console.error('[dashboard] Website pillar fetch error (cached path):', err);
+      }
+      return res.json({ ...cachedData, website });
     }
   } catch (err) {
     console.error('[dashboard] Cache read error:', err);
@@ -162,11 +170,13 @@ router.get('/refresh', async (req: Request, res: Response) => {
     return res.status(400).json({ error: 'tenant_id query parameter is required' });
   }
 
-  // Delete cached entry so fresh data is fetched unconditionally
+  // Delete cached entries so fresh data is fetched unconditionally.
+  // This covers both the outer 24h dashboard cache and the 1h website pillar cache.
   try {
     await pool.query(
-      `DELETE FROM tenant_cache WHERE tenant_id = $1 AND cache_key = $2`,
-      [tenantId, CACHE_KEY]
+      `DELETE FROM tenant_cache
+       WHERE tenant_id = $1 AND cache_key IN ($2, $3)`,
+      [tenantId, CACHE_KEY, `${tenantId}:dashboard:website`]
     );
     console.log(`[dashboard] Cleared cache for tenant ${tenantId}`);
   } catch (err) {

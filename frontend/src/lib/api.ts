@@ -160,19 +160,34 @@ export interface AdsPlatformMetrics {
   impressions: number;
 }
 
+export interface WebsiteMetric {
+  current: number;
+  previous: number;
+  change: number;
+}
+
+export type WebsitePillar =
+  | { connected: false }
+  | {
+      connected: true;
+      propertyId?: string;
+      propertyName: string;
+      metrics: {
+        sessions: WebsiteMetric;
+        newUsers: WebsiteMetric;
+        bounceRate: WebsiteMetric;
+        engagementRate: WebsiteMetric;
+      };
+      topSources: Array<{ source: string; sessions: number }>;
+    };
+
 export interface AnalyticsDashboardResponse {
   ads: AdsPlatformMetrics & {
     google: AdsPlatformMetrics;
     meta: AdsPlatformMetrics;
     linkedin: AdsPlatformMetrics;
   };
-  website: {
-    sessions: number;
-    users: number;
-    newUsers: number;
-    bounceRate: number;
-    topSources: Array<{ source: string; sessions: number }>;
-  };
+  website: WebsitePillar;
   brand: {
     impressions: number;
     clicks: number;

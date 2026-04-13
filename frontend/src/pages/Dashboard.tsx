@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useUser } from '@clerk/clerk-react';
-import { RefreshCw, Loader2, WifiOff, Star, Link2 } from 'lucide-react';
+import { RefreshCw, Loader2, WifiOff, Star, Link2, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import { useDashboard } from '../hooks/useDashboard';
 import { useAnalyticsDashboard } from '../hooks/useAnalyticsDashboard';
-import type { AnalyticsDashboardResponse, AdsPlatformMetrics } from '../lib/api';
+import type { AnalyticsDashboardResponse, AdsPlatformMetrics, WebsitePillar, WebsiteMetric } from '../lib/api';
 
 type PillarTab = 'ads' | 'social' | 'website' | 'brand';
 
@@ -136,11 +136,8 @@ export function Dashboard() {
           color="blue"
           isLoading={analyticsQuery.isLoading}
         />
-        <NorthStarCard
-          label="Website"
-          sublabel="Sessions"
-          value={analytics?.website ? fmt(analytics.website.sessions, 'number') : '—'}
-          color="emerald"
+        <WebsiteNorthStarCard
+          website={analytics?.website}
           isLoading={analyticsQuery.isLoading}
         />
         <NorthStarCard
@@ -394,32 +391,187 @@ function SocialTabContent({
 }
 
 // ===========================================
+// Website — shared helpers + North Star
+// ===========================================
+
+function ChangeBadge({ change, invert = false }: { change: number; invert?: boolean }) {
+  // invert=true for metrics where a decrease is good (e.g. bounceRate)
+  const effective = invert ? -change : change;
+  const isPositive = effective > 0;
+  const isNegative = effective < 0;
+  const isNeutral = !isPositive && !isNegative;
+  const color = isNeutral
+    ? 'text-slate-400 bg-slate-50'
+    : isPositive
+      ? 'text-emerald-600 bg-emerald-50'
+      : 'text-rose-600 bg-rose-50';
+  const Icon = isNegative ? ArrowDownRight : ArrowUpRight;
+  const sign = change > 0 ? '+' : '';
+  return (
+    <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs font-medium ${color}`}>
+      {!isNeutral && <Icon className="w-3 h-3" aria-hidden="true" />}
+      {sign}{change.toFixed(1)}%
+    </span>
+  );
+}
+
+function WebsiteNorthStarCard({
+  website,
+  isLoading,
+}: {
+  website?: WebsitePillar;
+  isLoading: boolean;
+}) {
+  if (isLoading) {
+    return (
+      <div className="card p-5 animate-pulse">
+        <div className="h-3 bg-slate-200 rounded w-1/2 mb-3" />
+        <div className="h-3 bg-slate-100 rounded w-1/3 mb-4" />
+        <div className="h-7 bg-slate-200 rounded w-3/4" />
+      </div>
+    );
+  }
+
+  const connected = website?.connected === true;
+
+  return (
+    <div className="card p-5">
+      <div className="flex items-center gap-2 mb-1">
+        <span className="w-2 h-2 rounded-full flex-shrink-0 bg-emerald-500" />
+        <span className="text-xs font-comfortaa font-semibold text-brew-brown/70 uppercase tracking-wide">
+          Website
+        </span>
+      </div>
+      <p className="text-xs text-slate-400 mb-2">Sessions</p>
+      {connected ? (
+        <div className="flex items-baseline gap-2 flex-wrap">
+          <p className="text-2xl font-display font-bold text-brew-dark">
+            {fmt(website!.metrics.sessions.current, 'number')}
+          </p>
+          <ChangeBadge change={website!.metrics.sessions.change} />
+        </div>
+      ) : (
+        <Link
+          to="/connections"
+          className="inline-flex items-center gap-1.5 text-sm text-brew-orange hover:text-brew-orange/80 mt-1"
+        >
+          <Link2 className="w-3.5 h-3.5" aria-hidden="true" />
+          Connect Google to see website data
+        </Link>
+      )}
+    </div>
+  );
+}
+
+// ===========================================
 // Website Tab
 // ===========================================
+
+function WebsiteMetricCell({
+  label,
+  metric,
+  format,
+  invertChange = false,
+}: {
+  label: string;
+  metric: WebsiteMetric;
+  format: (v: number) => string;
+  invertChange?: boolean;
+}) {
+  return (
+    <div>
+      <p className="flex items-center gap-1 text-xs text-slate-400 mb-1">
+        <Star className="w-2.5 h-2.5 text-brew-orange/30 flex-shrink-0" aria-hidden="true" />
+        {label}
+      </p>
+      <div className="flex items-baseline gap-2 flex-wrap">
+        <p className="text-lg font-display font-semibold text-brew-dark">{format(metric.current)}</p>
+        <ChangeBadge change={metric.change} invert={invertChange} />
+      </div>
+      <p className="text-xs text-slate-400 mt-0.5">
+        Prev: {format(metric.previous)}
+      </p>
+    </div>
+  );
+}
 
 function WebsiteTabContent({
   data,
   isLoading,
 }: {
-  data?: AnalyticsDashboardResponse['website'];
+  data?: WebsitePillar;
   isLoading: boolean;
 }) {
   if (isLoading) return <TabSkeleton />;
 
+  if (!data || data.connected === false) {
+    return (
+      <div className="card p-10 flex flex-col items-center justify-center text-center border-dashed">
+        <div className="w-12 h-12 bg-brew-orange/10 rounded-full flex items-center justify-center mb-4">
+          <Link2 className="w-5 h-5 text-brew-orange/50" aria-hidden="true" />
+        </div>
+        <p className="text-brew-dark/60 font-comfortaa font-semibold mb-1">
+          Connect Google to see website data
+        </p>
+        <p className="text-slate-400 text-sm mb-4">
+          Once connected, we'll pull sessions, users, and traffic sources from GA4.
+        </p>
+        <Link
+          to="/connections"
+          className="px-4 py-2 bg-forest-500 text-white rounded-lg hover:bg-forest-600 transition-colors text-sm inline-flex items-center gap-2"
+        >
+          <Link2 className="w-4 h-4" aria-hidden="true" />
+          Go to Connections
+        </Link>
+      </div>
+    );
+  }
+
+  const m = data.metrics;
+
   return (
     <div className="space-y-4">
       <div className="card p-6">
-        <h3 className="text-sm font-comfortaa font-semibold text-brew-dark mb-4">Website Overview</h3>
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-          <MetricCell label="Sessions" value={data ? fmt(data.sessions, 'number') : '—'} />
-          <MetricCell label="New Users" value={data ? fmt(data.newUsers, 'number') : '—'} />
-          <MetricCell label="Bounce Rate" value={data ? `${data.bounceRate.toFixed(1)}%` : '—'} />
+        <div className="flex items-baseline justify-between mb-4 flex-wrap gap-2">
+          <h3 className="text-sm font-comfortaa font-semibold text-brew-dark">
+            Website Overview
+          </h3>
+          {data.propertyName && (
+            <p className="text-xs text-slate-400">
+              GA4: <span className="text-slate-500">{data.propertyName}</span> · Last 7 days vs previous 7 days
+            </p>
+          )}
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <WebsiteMetricCell
+            label="Sessions"
+            metric={m.sessions}
+            format={(v) => fmt(v, 'number')}
+          />
+          <WebsiteMetricCell
+            label="New Users"
+            metric={m.newUsers}
+            format={(v) => fmt(v, 'number')}
+          />
+          <WebsiteMetricCell
+            label="Bounce Rate"
+            metric={m.bounceRate}
+            format={(v) => `${v.toFixed(1)}%`}
+            invertChange
+          />
+          <WebsiteMetricCell
+            label="Engagement Rate"
+            metric={m.engagementRate}
+            format={(v) => `${v.toFixed(1)}%`}
+          />
         </div>
       </div>
 
-      {data && data.topSources.length > 0 && (
+      {data.topSources.length > 0 && (
         <div className="card p-6">
-          <h3 className="text-sm font-comfortaa font-semibold text-brew-dark mb-4">Top Traffic Sources</h3>
+          <h3 className="text-sm font-comfortaa font-semibold text-brew-dark mb-4">
+            Top Traffic Sources
+          </h3>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -430,19 +582,21 @@ function WebsiteTabContent({
                 </tr>
               </thead>
               <tbody>
-                {data.topSources.map(s => {
-                  const total = data.sessions > 0 ? data.sessions : 1;
-                  const pct = ((s.sessions / total) * 100).toFixed(1);
-                  return (
-                    <tr key={s.source} className="border-b border-slate-50 last:border-0">
-                      <td className="py-2.5 text-slate-600 truncate max-w-[200px]">{s.source}</td>
-                      <td className="py-2.5 text-right font-medium text-slate-800">
-                        {s.sessions.toLocaleString('nl-NL')}
-                      </td>
-                      <td className="py-2.5 text-right text-slate-500">{pct}%</td>
-                    </tr>
-                  );
-                })}
+                {(() => {
+                  const total = data.topSources.reduce((sum, s) => sum + s.sessions, 0) || 1;
+                  return data.topSources.map((s) => {
+                    const pct = ((s.sessions / total) * 100).toFixed(1);
+                    return (
+                      <tr key={s.source} className="border-b border-slate-50 last:border-0">
+                        <td className="py-2.5 text-slate-600 truncate max-w-[200px]">{s.source}</td>
+                        <td className="py-2.5 text-right font-medium text-slate-800">
+                          {s.sessions.toLocaleString('nl-NL')}
+                        </td>
+                        <td className="py-2.5 text-right text-slate-500">{pct}%</td>
+                      </tr>
+                    );
+                  });
+                })()}
               </tbody>
             </table>
           </div>
