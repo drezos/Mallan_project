@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useUser } from '@clerk/clerk-react';
 import { RefreshCw, Loader2, WifiOff, Star, Link2, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import { useDashboard } from '../hooks/useDashboard';
@@ -36,13 +36,32 @@ function socialIsEmpty(s?: AnalyticsDashboardResponse['social']): boolean {
 }
 
 export function Dashboard() {
-  const [searchParams] = useSearchParams();
-  const tenant = searchParams.get('tenant') || undefined;
-  const { user } = useUser();
+  const { user, isLoaded: isUserLoaded } = useUser();
   const [activeTab, setActiveTab] = useState<PillarTab>('ads');
+  const [tenantId, setTenantId] = useState<string | undefined>(undefined);
 
-  const dashboardQuery = useDashboard(tenant);
-  const analyticsQuery = useAnalyticsDashboard(tenant);
+  // Resolve tenant_id from Clerk user (same pattern as Connections page)
+  useEffect(() => {
+    if (!isUserLoaded || !user?.id) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(
+          `${import.meta.env.VITE_API_URL}/api/onboarding/tenant?clerk_id=${user.id}`
+        );
+        if (res.ok) {
+          const data = await res.json();
+          if (!cancelled) setTenantId(data.tenant_id);
+        }
+      } catch {
+        // tenant lookup failed — analytics query will stay disabled
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [isUserLoaded, user?.id]);
+
+  const dashboardQuery = useDashboard();
+  const analyticsQuery = useAnalyticsDashboard(tenantId);
 
   const isLoading = dashboardQuery.isLoading;
   const isError = dashboardQuery.isError || (dashboardQuery.isFetched && dashboardQuery.data === null);
@@ -70,7 +89,7 @@ export function Dashboard() {
           <WifiOff className="w-8 h-8 text-amber-500 mx-auto mb-3" />
           <p className="text-slate-700 font-medium mb-2">Unable to load dashboard</p>
           <p className="text-slate-500 text-sm mb-4">
-            {tenant ? `Could not load data for tenant "${tenant}"` : 'Could not connect to the server'}
+            {tenantId ? `Could not load data for tenant "${tenantId}"` : 'Could not connect to the server'}
           </p>
           <button
             onClick={refetch}
@@ -444,12 +463,14 @@ function WebsiteNorthStarCard({
       </div>
       <p className="text-xs text-slate-400 mb-2">Sessions</p>
       {connected ? (
-        <div className="flex items-baseline gap-2 flex-wrap">
+        <>
           <p className="text-2xl font-display font-bold text-brew-dark">
             {fmt(website!.metrics.sessions.current, 'number')}
           </p>
-          <ChangeBadge change={website!.metrics.sessions.change} />
-        </div>
+          <div className="mt-1">
+            <ChangeBadge change={website!.metrics.sessions.change} />
+          </div>
+        </>
       ) : (
         <Link
           to="/connections"
