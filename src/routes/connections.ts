@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { google } from 'googleapis';
 import axios from 'axios';
 import { pool } from '../db/cache';
+import { invalidateSocialPillarCache } from '../services/facebookSocialPillar';
 
 const router = Router();
 
@@ -482,6 +483,19 @@ router.post('/meta/facebook-page', async (req: Request, res: Response) => {
 
     if (result.rowCount === 0) {
       return res.status(404).json({ error: 'No Meta connection found for tenant' });
+    }
+
+    // Drop the social pillar cache + the outer dashboard cache so the newly
+    // selected page is picked up on the next dashboard fetch instead of
+    // waiting for the 1h / 24h TTLs to expire.
+    await invalidateSocialPillarCache(tenant_id);
+    try {
+      await pool.query(
+        `DELETE FROM tenant_cache WHERE tenant_id = $1 AND cache_key = 'tenant_dashboard'`,
+        [tenant_id]
+      );
+    } catch (cacheErr) {
+      console.error('[connections] Failed to drop tenant_dashboard cache:', cacheErr);
     }
 
     return res.json({ success: true });
