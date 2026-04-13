@@ -6,8 +6,15 @@ const META_GRAPH_BASE_URL = `https://graph.facebook.com/${META_API_VERSION}`;
 const CACHE_KEY_SUFFIX = 'dashboard:social';
 const CACHE_DURATION_MS = 60 * 60 * 1000; // 1 hour
 
-const FB_INSIGHTS_METRICS =
-  'page_impressions,page_post_engagements,page_fans,page_fan_adds';
+// We fetch metrics one at a time so a single deprecated/invalid metric doesn't
+// fail the whole batch. Keep the list aligned with the task spec.
+const FB_METRICS = [
+  'page_impressions',
+  'page_post_engagements',
+  'page_fans',
+  'page_fan_adds',
+] as const;
+type FbMetricName = (typeof FB_METRICS)[number];
 
 // ===========================================
 // Types
@@ -55,12 +62,59 @@ export interface SocialPillarConnected {
 export type SocialPillar = SocialPillarDisconnected | SocialPillarConnected;
 
 // ===========================================
-// Helpers
+// Cache helpers
 // ===========================================
 
 function cacheKeyFor(tenantId: string) {
   return `${tenantId}:${CACHE_KEY_SUFFIX}`;
 }
+
+export async function invalidateSocialPillarCache(tenantId: string): Promise<void> {
+  try {
+    await pool.query(
+      `DELETE FROM tenant_cache WHERE tenant_id = $1 AND cache_key = $2`,
+      [tenantId, cacheKeyFor(tenantId)]
+    );
+    console.log(`[socialPillar] Cache invalidated for tenant ${tenantId}`);
+  } catch (err) {
+    console.error('[socialPillar] Cache invalidate error:', err);
+  }
+}
+
+async function readCache(tenantId: string): Promise<SocialPillar | null> {
+  try {
+    const result = await pool.query(
+      `SELECT data
+       FROM tenant_cache
+       WHERE tenant_id = $1 AND cache_key = $2 AND expires_at > NOW()`,
+      [tenantId, cacheKeyFor(tenantId)]
+    );
+    if (result.rows.length === 0) return null;
+    return result.rows[0].data as SocialPillar;
+  } catch (err) {
+    console.error('[socialPillar] cache read error:', err);
+    return null;
+  }
+}
+
+async function writeCache(tenantId: string, data: SocialPillar): Promise<void> {
+  try {
+    const expiresAt = new Date(Date.now() + CACHE_DURATION_MS);
+    await pool.query(
+      `INSERT INTO tenant_cache (tenant_id, cache_key, data, expires_at)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (tenant_id, cache_key)
+       DO UPDATE SET data = $3, expires_at = $4, created_at = NOW()`,
+      [tenantId, cacheKeyFor(tenantId), JSON.stringify(data), expiresAt]
+    );
+  } catch (err) {
+    console.error('[socialPillar] cache write error:', err);
+  }
+}
+
+// ===========================================
+// Shape helpers
+// ===========================================
 
 function pctChange(current: number, previous: number): number {
   if (previous === 0) {
@@ -82,37 +136,6 @@ function ymd(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
-async function readCache(tenantId: string): Promise<SocialPillar | null> {
-  try {
-    const result = await pool.query(
-      `SELECT data
-       FROM tenant_cache
-       WHERE tenant_id = $1 AND cache_key = $2 AND expires_at > NOW()`,
-      [tenantId, cacheKeyFor(tenantId)]
-    );
-    if (result.rows.length === 0) return null;
-    return result.rows[0].data as SocialPillar;
-  } catch (err) {
-    console.error('[facebookSocialPillar] cache read error:', err);
-    return null;
-  }
-}
-
-async function writeCache(tenantId: string, data: SocialPillar): Promise<void> {
-  try {
-    const expiresAt = new Date(Date.now() + CACHE_DURATION_MS);
-    await pool.query(
-      `INSERT INTO tenant_cache (tenant_id, cache_key, data, expires_at)
-       VALUES ($1, $2, $3, $4)
-       ON CONFLICT (tenant_id, cache_key)
-       DO UPDATE SET data = $3, expires_at = $4, created_at = NOW()`,
-      [tenantId, cacheKeyFor(tenantId), JSON.stringify(data), expiresAt]
-    );
-  } catch (err) {
-    console.error('[facebookSocialPillar] cache write error:', err);
-  }
-}
-
 // ===========================================
 // Facebook Graph API
 // ===========================================
@@ -122,7 +145,7 @@ interface FbInsightsResponse {
     name: string;
     values?: Array<{ value?: number | Record<string, number>; end_time?: string }>;
   }>;
-  error?: { message?: string; code?: number };
+  error?: { message?: string; code?: number; type?: string; error_subcode?: number };
 }
 
 interface AggregatedInsights {
@@ -135,7 +158,6 @@ interface AggregatedInsights {
 function numericValue(v: unknown): number {
   if (typeof v === 'number') return v;
   if (v && typeof v === 'object') {
-    // Some insights return an object map (e.g. by age/gender) — sum its values.
     return Object.values(v as Record<string, number>).reduce(
       (sum, n) => sum + (typeof n === 'number' ? n : 0),
       0
@@ -144,57 +166,99 @@ function numericValue(v: unknown): number {
   return 0;
 }
 
-function aggregateInsights(resp: FbInsightsResponse): AggregatedInsights {
-  let impressions = 0;
-  let engagedUsers = 0;
-  let fans = 0;
-  let newFans = 0;
-
-  for (const metric of resp.data ?? []) {
-    const values = metric.values ?? [];
-    if (metric.name === 'page_impressions') {
-      impressions = values.reduce((sum, v) => sum + numericValue(v.value), 0);
-    } else if (metric.name === 'page_post_engagements') {
-      engagedUsers = values.reduce((sum, v) => sum + numericValue(v.value), 0);
-    } else if (metric.name === 'page_fans') {
-      // Gauge: use the most recent daily snapshot
-      fans = values.length > 0 ? numericValue(values[values.length - 1].value) : 0;
-    } else if (metric.name === 'page_fan_adds') {
-      newFans = values.reduce((sum, v) => sum + numericValue(v.value), 0);
-    }
-  }
-
-  return { impressions, engagedUsers, fans, newFans };
-}
-
-async function fetchPageInsights(
+/**
+ * Fetch a single metric from the Page Insights API. Returns the raw daily
+ * values so the caller can decide whether to sum (events) or take the last
+ * snapshot (gauges). Logs and returns [] if the individual metric fails so
+ * one deprecated metric doesn't poison the others.
+ */
+async function fetchSingleMetric(
   pageId: string,
   pageAccessToken: string,
+  metric: FbMetricName,
   since: string,
-  until: string
-): Promise<AggregatedInsights> {
+  until: string,
+  tag: string
+): Promise<number[]> {
   const url =
     `${META_GRAPH_BASE_URL}/${pageId}/insights` +
-    `?metric=${FB_INSIGHTS_METRICS}` +
+    `?metric=${metric}` +
     `&period=day` +
     `&since=${since}` +
     `&until=${until}` +
     `&access_token=${encodeURIComponent(pageAccessToken)}`;
 
-  const response = await fetch(url);
+  // Log URL with the token masked so it can be safely grepped in Railway logs.
+  const safeUrl = url.replace(/access_token=[^&]+/, 'access_token=***');
+  console.log(`[socialPillar] (${tag}) GET ${safeUrl}`);
+
+  let response: Response;
+  try {
+    response = await fetch(url);
+  } catch (err) {
+    console.error(`[socialPillar] (${tag}) network error for ${metric}:`, err);
+    return [];
+  }
+
+  const rawText = await response.text();
   if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(
-      `Facebook Page Insights call failed (${response.status}): ${errorText}`
+    console.error(
+      `[socialPillar] (${tag}) ${metric} HTTP ${response.status}: ${rawText.slice(0, 400)}`
     );
+    return [];
   }
-  const json = (await response.json()) as FbInsightsResponse;
+
+  let json: FbInsightsResponse;
+  try {
+    json = JSON.parse(rawText) as FbInsightsResponse;
+  } catch (err) {
+    console.error(`[socialPillar] (${tag}) ${metric} JSON parse error:`, err);
+    return [];
+  }
+
   if (json.error) {
-    throw new Error(
-      `Facebook Page Insights returned error: ${json.error.message ?? 'unknown'}`
+    console.error(
+      `[socialPillar] (${tag}) ${metric} API error: ${json.error.message} (code=${json.error.code}, subcode=${json.error.error_subcode})`
     );
+    return [];
   }
-  return aggregateInsights(json);
+
+  const entry = (json.data ?? []).find((m) => m.name === metric);
+  if (!entry) {
+    console.warn(`[socialPillar] (${tag}) ${metric} returned no data`);
+    return [];
+  }
+
+  const values = (entry.values ?? []).map((v) => numericValue(v.value));
+  console.log(
+    `[socialPillar] (${tag}) ${metric} returned ${values.length} daily value(s)`
+  );
+  return values;
+}
+
+async function fetchWindowInsights(
+  pageId: string,
+  pageAccessToken: string,
+  since: string,
+  until: string,
+  tag: string
+): Promise<AggregatedInsights> {
+  const [impressionsDaily, engagedDaily, fansDaily, fanAddsDaily] =
+    await Promise.all(
+      FB_METRICS.map((m) =>
+        fetchSingleMetric(pageId, pageAccessToken, m, since, until, tag)
+      )
+    );
+
+  const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
+  const last = (xs: number[]) => (xs.length > 0 ? xs[xs.length - 1] : 0);
+
+  return {
+    impressions: sum(impressionsDaily),
+    engagedUsers: sum(engagedDaily),
+    fans: last(fansDaily), // gauge
+    newFans: sum(fanAddsDaily),
+  };
 }
 
 // ===========================================
@@ -202,18 +266,30 @@ async function fetchPageInsights(
 // ===========================================
 
 export async function getSocialPillar(tenantId: string): Promise<SocialPillar> {
-  // 1. Cache
+  console.log(`[socialPillar] Fetching for tenant ${tenantId}`);
+
+  // 1. Cache — only trust cached CONNECTED results. A cached disconnected
+  // result is re-evaluated so that selecting a page takes effect immediately,
+  // even if cache invalidation got missed somewhere.
   const cached = await readCache(tenantId);
-  if (cached) return cached;
+  if (cached && cached.connected === true) {
+    console.log(`[socialPillar] Cache HIT (connected) for tenant ${tenantId}`);
+    return cached;
+  }
+  if (cached) {
+    console.log(
+      `[socialPillar] Cache has disconnected entry for tenant ${tenantId} — re-evaluating`
+    );
+  } else {
+    console.log(`[socialPillar] Cache MISS for tenant ${tenantId}`);
+  }
 
   const disconnected: SocialPillar = { connected: false };
 
-  // 2. Look up Meta connection and selected Facebook page
-  let connRow: {
-    selected_facebook_page_id?: string | null;
-    selected_facebook_page_name?: string | null;
-    selected_facebook_page_access_token?: string | null;
-  };
+  // 2. Look up Meta connection + selected Facebook page
+  let pageId: string | null = null;
+  let pageAccessToken: string | null = null;
+  let pageName = '';
   try {
     const result = await pool.query(
       `SELECT selected_facebook_page_id,
@@ -224,23 +300,30 @@ export async function getSocialPillar(tenantId: string): Promise<SocialPillar> {
       [tenantId]
     );
     if (result.rows.length === 0) {
-      await writeCache(tenantId, disconnected);
+      console.log(
+        `[socialPillar] No Meta connection row for tenant ${tenantId} — returning disconnected`
+      );
       return disconnected;
     }
-    connRow = result.rows[0];
+    const row = result.rows[0];
+    pageId = row.selected_facebook_page_id ?? null;
+    pageAccessToken = row.selected_facebook_page_access_token ?? null;
+    pageName = row.selected_facebook_page_name ?? '';
   } catch (err) {
-    console.error('[facebookSocialPillar] DB lookup error:', err);
+    console.error('[socialPillar] DB lookup error:', err);
     return disconnected;
   }
-
-  const pageId = connRow.selected_facebook_page_id;
-  const pageAccessToken = connRow.selected_facebook_page_access_token;
-  const pageName = connRow.selected_facebook_page_name ?? '';
 
   if (!pageId || !pageAccessToken) {
-    await writeCache(tenantId, disconnected);
+    console.log(
+      `[socialPillar] Meta connection exists but no page selected for tenant ${tenantId} (pageId=${pageId ? 'set' : 'null'}, pageAccessToken=${pageAccessToken ? 'set' : 'null'}) — returning disconnected`
+    );
     return disconnected;
   }
+
+  console.log(
+    `[socialPillar] Fetching for tenant ${tenantId} page ${pageId} (${pageName})`
+  );
 
   // 3. Build date windows: last 7 days, and the 7 days before that
   const today = new Date();
@@ -252,23 +335,17 @@ export async function getSocialPillar(tenantId: string): Promise<SocialPillar> {
   const previousSince = ymd(fourteenDaysAgo);
   const previousUntil = ymd(sevenDaysAgo);
 
-  // 4. Fetch current + previous windows in parallel
-  let current: AggregatedInsights;
-  let previous: AggregatedInsights;
-  try {
-    [current, previous] = await Promise.all([
-      fetchPageInsights(pageId, pageAccessToken, currentSince, currentUntil),
-      fetchPageInsights(pageId, pageAccessToken, previousSince, previousUntil),
-    ]);
-  } catch (err) {
-    console.error(
-      `[facebookSocialPillar] Facebook Page Insights error for tenant ${tenantId}:`,
-      err
-    );
-    // If the API call fails we surface disconnected rather than throw, so the
-    // rest of the dashboard still renders.
-    return disconnected;
-  }
+  // 4. Fetch current + previous windows in parallel. Individual metric
+  // failures are tolerated (see fetchSingleMetric), so we always reach the
+  // connected=true path as long as the page was selected.
+  const [current, previous] = await Promise.all([
+    fetchWindowInsights(pageId, pageAccessToken, currentSince, currentUntil, 'current'),
+    fetchWindowInsights(pageId, pageAccessToken, previousSince, previousUntil, 'previous'),
+  ]);
+
+  console.log(
+    `[socialPillar] Aggregated for tenant ${tenantId}: current=${JSON.stringify(current)} previous=${JSON.stringify(previous)}`
+  );
 
   // 5. Build pillar payload
   const impressions = toMetric(current.impressions, previous.impressions);
@@ -276,7 +353,6 @@ export async function getSocialPillar(tenantId: string): Promise<SocialPillar> {
   const fans = toMetric(current.fans, previous.fans);
   const newFans = toMetric(current.newFans, previous.newFans);
 
-  // Engagement rate = engaged_users / impressions * 100
   const currentEngagementRate =
     current.impressions > 0
       ? (current.engagedUsers / current.impressions) * 100
@@ -286,9 +362,9 @@ export async function getSocialPillar(tenantId: string): Promise<SocialPillar> {
       ? (previous.engagedUsers / previous.impressions) * 100
       : 0;
 
-  // No dedicated reach metric is fetched — use impressions as a proxy so the
-  // combined totals still have a value. Instagram / LinkedIn will supply real
-  // reach when they come online.
+  // No dedicated reach metric is fetched (task spec lists only the four
+  // above) — use impressions as a proxy for combined reach until Instagram /
+  // LinkedIn are wired in.
   const reach = toMetric(current.impressions, previous.impressions);
   const engagementRate = toMetric(currentEngagementRate, previousEngagementRate);
 
@@ -298,12 +374,7 @@ export async function getSocialPillar(tenantId: string): Promise<SocialPillar> {
       facebook: {
         connected: true,
         pageName,
-        metrics: {
-          impressions,
-          engagedUsers,
-          fans,
-          newFans,
-        },
+        metrics: { impressions, engagedUsers, fans, newFans },
       },
       instagram: { connected: false },
       linkedin: { connected: false },
@@ -314,5 +385,8 @@ export async function getSocialPillar(tenantId: string): Promise<SocialPillar> {
   };
 
   await writeCache(tenantId, result);
+  console.log(
+    `[socialPillar] Returning connected pillar for tenant ${tenantId} (cached 1h)`
+  );
   return result;
 }
