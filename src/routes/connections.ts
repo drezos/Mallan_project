@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { google } from 'googleapis';
+import axios from 'axios';
 import { pool } from '../db/cache';
 
 const router = Router();
@@ -354,6 +355,57 @@ router.post('/google/search-console-site', async (req: Request, res: Response) =
   } catch (err) {
     console.error('Error saving selected Search Console site:', err);
     return res.status(500).json({ error: 'Failed to save selected Search Console site' });
+  }
+});
+
+// GET /api/connections/meta/facebook-pages?tenant_id={uuid}
+// Lists Facebook Pages (with linked Instagram Business Accounts) available to
+// the tenant's connected Meta account.
+router.get('/meta/facebook-pages', async (req: Request, res: Response) => {
+  const { tenant_id } = req.query;
+
+  if (!tenant_id || typeof tenant_id !== 'string') {
+    return res.status(400).json({ error: 'tenant_id is required' });
+  }
+
+  try {
+    const result = await pool.query(
+      `SELECT access_token
+       FROM tenant_connections
+       WHERE tenant_id = $1 AND platform = 'meta'`,
+      [tenant_id]
+    );
+
+    if (result.rows.length === 0 || !result.rows[0].access_token) {
+      return res.status(401).json({ error: 'No Meta connection found for tenant' });
+    }
+
+    const accessToken: string = result.rows[0].access_token;
+
+    // TODO: Meta tokens can be short-lived; exchange for a long-lived token
+    // (GET /oauth/access_token?grant_type=fb_exchange_token) when we add a
+    // dedicated refresh helper. For now we rely on the long-lived token
+    // already stored at OAuth time.
+    const response = await axios.get('https://graph.facebook.com/v21.0/me/accounts', {
+      params: {
+        access_token: accessToken,
+        fields: 'id,name,access_token,instagram_business_account',
+      },
+    });
+
+    const pages = (response.data?.data ?? []).map((page: any) => ({
+      pageId: page.id,
+      name: page.name,
+      pageAccessToken: page.access_token,
+      instagramAccountId: page.instagram_business_account?.id ?? null,
+    }));
+
+    return res.json(pages);
+  } catch (err: any) {
+    console.error('Error fetching Facebook Pages:', err);
+    const message =
+      err?.response?.data?.error?.message || err?.message || 'Unknown error';
+    return res.status(500).json({ error: `Failed to fetch Facebook Pages: ${message}` });
   }
 });
 
