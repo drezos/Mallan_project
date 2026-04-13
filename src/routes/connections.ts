@@ -151,6 +151,84 @@ router.get('/google/ga4-properties', async (req: Request, res: Response) => {
   }
 });
 
+// GET /api/connections/google/search-console-sites?tenant_id={uuid}
+// Lists Search Console sites available to the tenant's connected Google account.
+router.get('/google/search-console-sites', async (req: Request, res: Response) => {
+  const { tenant_id } = req.query;
+
+  if (!tenant_id || typeof tenant_id !== 'string') {
+    return res.status(400).json({ error: 'tenant_id is required' });
+  }
+
+  try {
+    const result = await pool.query(
+      `SELECT access_token, refresh_token, expires_at
+       FROM tenant_connections
+       WHERE tenant_id = $1 AND platform = 'google'`,
+      [tenant_id]
+    );
+
+    if (result.rows.length === 0 || !result.rows[0].access_token) {
+      return res.status(401).json({ error: 'No Google connection found for tenant' });
+    }
+
+    const { refresh_token, expires_at } = result.rows[0];
+    let accessToken: string = result.rows[0].access_token;
+
+    // Proactively refresh if the token is expired or about to expire.
+    const expiryBufferMs = 5 * 60 * 1000;
+    const isExpired =
+      !expires_at || new Date(expires_at).getTime() <= Date.now() + expiryBufferMs;
+    if (isExpired) {
+      if (!refresh_token) {
+        return res
+          .status(401)
+          .json({ error: 'Google access token expired and no refresh token available' });
+      }
+      accessToken = await refreshGoogleAccessToken(tenant_id, refresh_token);
+    }
+
+    const callSitesList = async (token: string) => {
+      const oauth2Client = new google.auth.OAuth2(
+        process.env.GOOGLE_CLIENT_ID,
+        process.env.GOOGLE_CLIENT_SECRET
+      );
+      oauth2Client.setCredentials({ access_token: token });
+      const webmasters = google.webmasters({
+        version: 'v3',
+        auth: oauth2Client,
+      });
+      return webmasters.sites.list();
+    };
+
+    let response;
+    try {
+      response = await callSitesList(accessToken);
+    } catch (err: any) {
+      // If the token was invalidated server-side, try one more time after refreshing.
+      const status = err?.code || err?.response?.status;
+      if ((status === 401 || status === 403) && refresh_token) {
+        accessToken = await refreshGoogleAccessToken(tenant_id, refresh_token);
+        response = await callSitesList(accessToken);
+      } else {
+        throw err;
+      }
+    }
+
+    const siteEntries = response.data.siteEntry ?? [];
+    const sites = siteEntries.map((site) => ({
+      siteUrl: site.siteUrl ?? '',
+      permissionLevel: site.permissionLevel ?? '',
+    }));
+
+    return res.json(sites);
+  } catch (err: any) {
+    console.error('Error fetching Search Console sites:', err);
+    const message = err?.response?.data?.error?.message || err?.message || 'Unknown error';
+    return res.status(500).json({ error: `Failed to fetch Search Console sites: ${message}` });
+  }
+});
+
 // GET /api/connections/google/selected-property?tenant_id={uuid}
 // Returns the GA4 property the tenant has picked for their Google connection (if any).
 router.get('/google/selected-property', async (req: Request, res: Response) => {
