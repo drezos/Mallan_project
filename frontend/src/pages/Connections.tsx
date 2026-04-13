@@ -19,6 +19,15 @@ interface SelectedGa4Property {
   displayName: string | null;
 }
 
+interface SearchConsoleSite {
+  siteUrl: string;
+  permissionLevel: string;
+}
+
+interface SelectedSearchConsoleSite {
+  siteUrl: string | null;
+}
+
 const GoogleIcon = () => (
   <svg width="32" height="32" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
     <path d="M35.44 24.28c0-.9-.08-1.76-.22-2.6H24v4.92h6.4a5.46 5.46 0 0 1-2.37 3.58v2.97h3.84c2.25-2.07 3.57-5.12 3.57-8.87z" fill="#4285F4" />
@@ -90,6 +99,15 @@ export function Connections() {
   const [ga4Error, setGa4Error] = useState<string | null>(null);
   const [ga4Choice, setGa4Choice] = useState<string | null>(null);
   const [ga4Saving, setGa4Saving] = useState(false);
+
+  // Search Console site picker state
+  const [selectedSite, setSelectedSite] = useState<SelectedSearchConsoleSite | null>(null);
+  const [sitePickerOpen, setSitePickerOpen] = useState(false);
+  const [sites, setSites] = useState<SearchConsoleSite[] | null>(null);
+  const [sitesLoading, setSitesLoading] = useState(false);
+  const [sitesError, setSitesError] = useState<string | null>(null);
+  const [siteChoice, setSiteChoice] = useState<string | null>(null);
+  const [siteSaving, setSiteSaving] = useState(false);
 
   // If redirected back from OAuth with ?connected={platform}, apply it immediately
   const connectedParam = searchParams.get('connected') as keyof ConnectionStatus | null;
@@ -182,6 +200,85 @@ export function Connections() {
     })();
     return () => { cancelled = true; };
   }, [tenantId, status?.google]);
+
+  // Fetch currently-selected Search Console site when Google is connected
+  useEffect(() => {
+    if (!tenantId || !status?.google) {
+      setSelectedSite(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(
+          `${import.meta.env.VITE_API_URL}/api/connections/google/selected-search-console-site?tenant_id=${tenantId}`
+        );
+        if (res.ok) {
+          const data: SelectedSearchConsoleSite = await res.json();
+          if (!cancelled) setSelectedSite(data);
+        }
+      } catch {
+        // silently fail
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [tenantId, status?.google]);
+
+  const openSitePicker = useCallback(async () => {
+    if (!tenantId) return;
+    setSitePickerOpen(true);
+    setSitesLoading(true);
+    setSitesError(null);
+    setSites(null);
+    setSiteChoice(selectedSite?.siteUrl ?? null);
+    try {
+      const res = await fetch(
+        `${import.meta.env.VITE_API_URL}/api/connections/google/search-console-sites?tenant_id=${tenantId}`
+      );
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setSitesError(body?.error || 'Failed to load Search Console sites');
+      } else {
+        const data: SearchConsoleSite[] = await res.json();
+        setSites(data);
+      }
+    } catch (e: any) {
+      setSitesError(e?.message || 'Failed to load Search Console sites');
+    } finally {
+      setSitesLoading(false);
+    }
+  }, [tenantId, selectedSite?.siteUrl]);
+
+  const saveSearchConsoleSite = useCallback(async () => {
+    if (!tenantId || !siteChoice || !sites) return;
+    const chosen = sites.find((s) => s.siteUrl === siteChoice);
+    if (!chosen) return;
+    setSiteSaving(true);
+    try {
+      const res = await fetch(
+        `${import.meta.env.VITE_API_URL}/api/connections/google/search-console-site`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            tenant_id: tenantId,
+            siteUrl: chosen.siteUrl,
+          }),
+        }
+      );
+      if (res.ok) {
+        setSelectedSite({ siteUrl: chosen.siteUrl });
+        setSitePickerOpen(false);
+      } else {
+        const body = await res.json().catch(() => ({}));
+        setSitesError(body?.error || 'Failed to save site');
+      }
+    } catch (e: any) {
+      setSitesError(e?.message || 'Failed to save site');
+    } finally {
+      setSiteSaving(false);
+    }
+  }, [tenantId, siteChoice, sites]);
 
   const openGa4Picker = useCallback(async () => {
     if (!tenantId) return;
@@ -861,6 +958,77 @@ export function Connections() {
               )}
             </div>
           )}
+          {platform.key === 'google' && (
+            <div
+              style={{
+                padding: '0 24px 16px 72px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '12px',
+                flexWrap: 'wrap',
+              }}
+            >
+              {selectedSite?.siteUrl ? (
+                <>
+                  <span
+                    style={{
+                      fontFamily: 'system-ui, sans-serif',
+                      fontSize: '0.85rem',
+                      color: '#4A2C2A',
+                    }}
+                  >
+                    Search Console Site:{' '}
+                    <span style={{ fontWeight: 600 }}>{selectedSite.siteUrl}</span>
+                  </span>
+                  <button
+                    onClick={openSitePicker}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      fontFamily: 'system-ui, sans-serif',
+                      fontSize: '0.8rem',
+                      color: '#8B4513',
+                      padding: '4px 8px',
+                      borderRadius: '4px',
+                      textDecoration: 'underline',
+                    }}
+                  >
+                    Change
+                  </button>
+                </>
+              ) : (
+                <>
+                  <span
+                    style={{
+                      fontFamily: 'system-ui, sans-serif',
+                      fontSize: '0.85rem',
+                      color: '#B8860B',
+                    }}
+                  >
+                    ⚠ No Search Console site selected
+                  </span>
+                  <button
+                    onClick={openSitePicker}
+                    style={{
+                      background: '#FF8C00',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: '6px',
+                      padding: '6px 14px',
+                      fontSize: '0.8rem',
+                      fontFamily: "'Comfortaa', sans-serif",
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Select site
+                  </button>
+                </>
+              )}
+            </div>
+          )}
           </div>
         ))}
       </div>
@@ -1171,6 +1339,219 @@ export function Connections() {
                 }}
               >
                 {ga4Saving ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {sitePickerOpen && (
+        <div
+          onClick={() => { if (!siteSaving) setSitePickerOpen(false); }}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0,0,0,0.4)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: '#fff',
+              borderRadius: '16px',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+              maxWidth: '520px',
+              width: '90%',
+              padding: '28px',
+              maxHeight: '80vh',
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+          >
+            <h2
+              style={{
+                fontFamily: "'Comfortaa', sans-serif",
+                fontWeight: 600,
+                color: '#4A2C2A',
+                fontSize: '1.2rem',
+                margin: '0 0 4px 0',
+              }}
+            >
+              Select a Search Console site
+            </h2>
+            <p
+              style={{
+                fontFamily: 'system-ui, sans-serif',
+                color: '#6B5B5B',
+                fontSize: '0.9rem',
+                margin: '0 0 20px 0',
+              }}
+            >
+              Choose which Search Console site to use for your dashboard.
+            </p>
+
+            <div style={{ flex: 1, overflowY: 'auto', minHeight: '160px' }}>
+              {sitesLoading && (
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '40px 0',
+                    gap: '12px',
+                  }}
+                >
+                  <div
+                    style={{
+                      width: '24px',
+                      height: '24px',
+                      border: '3px solid #E8DCC8',
+                      borderTopColor: '#8B4513',
+                      borderRadius: '50%',
+                      animation: 'scspin 0.8s linear infinite',
+                    }}
+                  />
+                  <span style={{ color: '#6B5B5B', fontFamily: 'system-ui, sans-serif', fontSize: '0.9rem' }}>
+                    Loading sites…
+                  </span>
+                  <style>{`@keyframes scspin { to { transform: rotate(360deg); } }`}</style>
+                </div>
+              )}
+
+              {!sitesLoading && sitesError && (
+                <div
+                  style={{
+                    padding: '16px',
+                    background: '#FDF2F2',
+                    border: '1px solid #F5C6C6',
+                    borderRadius: '8px',
+                    color: '#C0392B',
+                    fontFamily: 'system-ui, sans-serif',
+                    fontSize: '0.875rem',
+                  }}
+                >
+                  {sitesError}
+                </div>
+              )}
+
+              {!sitesLoading && !sitesError && sites && sites.length === 0 && (
+                <p
+                  style={{
+                    color: '#6B5B5B',
+                    fontFamily: 'system-ui, sans-serif',
+                    fontSize: '0.9rem',
+                    textAlign: 'center',
+                    padding: '24px 0',
+                  }}
+                >
+                  No Search Console sites found on your Google account.
+                </p>
+              )}
+
+              {!sitesLoading && !sitesError && sites && sites.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {sites.map((s) => {
+                    const isChecked = siteChoice === s.siteUrl;
+                    return (
+                      <label
+                        key={s.siteUrl}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'flex-start',
+                          gap: '12px',
+                          padding: '12px 14px',
+                          border: `1px solid ${isChecked ? '#8B4513' : '#E8DCC8'}`,
+                          borderRadius: '10px',
+                          background: isChecked ? '#FAF5EE' : '#fff',
+                          cursor: 'pointer',
+                          transition: 'border-color 0.15s, background 0.15s',
+                        }}
+                      >
+                        <input
+                          type="radio"
+                          name="search-console-site"
+                          value={s.siteUrl}
+                          checked={isChecked}
+                          onChange={() => setSiteChoice(s.siteUrl)}
+                          style={{ marginTop: '3px', accentColor: '#8B4513' }}
+                        />
+                        <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                          <span
+                            style={{
+                              fontFamily: 'system-ui, sans-serif',
+                              fontWeight: 600,
+                              color: '#4A2C2A',
+                              fontSize: '0.9rem',
+                              wordBreak: 'break-all',
+                            }}
+                          >
+                            {s.siteUrl}
+                          </span>
+                          <span
+                            style={{
+                              fontFamily: 'system-ui, sans-serif',
+                              color: '#6B5B5B',
+                              fontSize: '0.8rem',
+                            }}
+                          >
+                            {s.permissionLevel}
+                          </span>
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'flex-end',
+                gap: '12px',
+                marginTop: '20px',
+              }}
+            >
+              <button
+                onClick={() => setSitePickerOpen(false)}
+                disabled={siteSaving}
+                style={{
+                  background: 'none',
+                  border: '1px solid #D2B48C',
+                  borderRadius: '8px',
+                  padding: '8px 20px',
+                  fontFamily: 'system-ui, sans-serif',
+                  color: '#4A2C2A',
+                  fontSize: '0.875rem',
+                  cursor: siteSaving ? 'default' : 'pointer',
+                  opacity: siteSaving ? 0.6 : 1,
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={saveSearchConsoleSite}
+                disabled={!siteChoice || siteSaving || sitesLoading}
+                style={{
+                  background: '#FF8C00',
+                  border: 'none',
+                  borderRadius: '8px',
+                  padding: '8px 20px',
+                  fontFamily: "'Comfortaa', sans-serif",
+                  fontWeight: 600,
+                  color: '#fff',
+                  fontSize: '0.875rem',
+                  cursor: (!siteChoice || siteSaving || sitesLoading) ? 'default' : 'pointer',
+                  opacity: (!siteChoice || siteSaving || sitesLoading) ? 0.6 : 1,
+                }}
+              >
+                {siteSaving ? 'Saving…' : 'Save'}
               </button>
             </div>
           </div>
