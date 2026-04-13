@@ -9,10 +9,10 @@ const CACHE_DURATION_MS = 60 * 60 * 1000; // 1 hour
 // We fetch metrics one at a time so a single deprecated/invalid metric doesn't
 // fail the whole batch. Keep the list aligned with the task spec.
 const FB_METRICS = [
-  'page_impressions',
+  'page_impressions_unique',
   'page_post_engagements',
-  'page_fans',
-  'page_fan_adds',
+  'page_follows',
+  'page_daily_follows',
 ] as const;
 type FbMetricName = (typeof FB_METRICS)[number];
 
