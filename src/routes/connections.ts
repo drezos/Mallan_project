@@ -517,6 +517,8 @@ router.post('/meta/facebook-page', async (req: Request, res: Response) => {
 router.get('/linkedin/pages', async (req: Request, res: Response) => {
   const { tenant_id } = req.query;
 
+  console.log('[linkedinPages] entry', { tenant_id });
+
   if (!tenant_id || typeof tenant_id !== 'string') {
     return res.status(400).json({ error: 'tenant_id is required' });
   }
@@ -534,32 +536,71 @@ router.get('/linkedin/pages', async (req: Request, res: Response) => {
     }
 
     const accessToken: string = result.rows[0].access_token;
+    const maskedToken =
+      accessToken.length > 8
+        ? `${accessToken.slice(0, 4)}...${accessToken.slice(-4)}`
+        : '****';
+    const headers = {
+      Authorization: `Bearer ${accessToken}`,
+      'LinkedIn-Version': '202401',
+      'X-Restli-Protocol-Version': '2.0.0',
+    };
 
-    const response = await axios.get('https://api.linkedin.com/rest/organizationAcls', {
-      params: {
-        q: 'roleAssignee',
-        role: 'ADMINISTRATOR',
-        state: 'APPROVED',
-        projection:
-          '(elements*(organization~(id,localizedName,vanityName,logoV2(original~:playableStreams))))',
-      },
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'LinkedIn-Version': '202401',
-        'X-Restli-Protocol-Version': '2.0.0',
-      },
-    });
+    const aclsUrl =
+      'https://api.linkedin.com/rest/organizationAcls?q=roleAssignee&role=ADMINISTRATOR&state=APPROVED';
+    console.log('[linkedinPages] GET', aclsUrl, `(token=${maskedToken})`);
 
-    const elements = response.data?.elements ?? [];
-    const pages = elements.map((el: any) => {
-      const org = el['organization~'] ?? {};
-      return {
-        organizationId: String(org.id ?? ''),
-        name: org.localizedName ?? '',
-        vanityName: org.vanityName ?? '',
-      };
-    });
+    const response = await axios.get(aclsUrl, { headers });
 
+    const elements: any[] = response.data?.elements ?? [];
+    console.log('[linkedinPages] organizationAcls returned', elements.length, 'elements');
+
+    // Each element has an "organization" URN like "urn:li:organization:12345678".
+    const orgIds: string[] = elements
+      .map((el: any) => {
+        const urn: string = el?.organization ?? '';
+        const match = urn.match(/urn:li:organization:(\d+)/);
+        return match ? match[1] : '';
+      })
+      .filter((id: string) => id.length > 0);
+
+    console.log('[linkedinPages] extracted', orgIds.length, 'organization IDs');
+
+    // Fetch each org's details in parallel; tolerate per-org failures.
+    const pages = (
+      await Promise.all(
+        orgIds.map(async (organizationId) => {
+          const orgUrl = `https://api.linkedin.com/rest/organizations/${organizationId}`;
+          console.log('[linkedinPages] GET', orgUrl, `(token=${maskedToken})`);
+          try {
+            const orgResp = await axios.get(orgUrl, { headers });
+            const org = orgResp.data ?? {};
+            console.log(
+              '[linkedinPages] org',
+              organizationId,
+              'ok:',
+              org.localizedName ?? '(no name)'
+            );
+            return {
+              organizationId: String(org.id ?? organizationId),
+              name: org.localizedName ?? '',
+              vanityName: org.vanityName ?? '',
+            };
+          } catch (orgErr: any) {
+            console.error(
+              '[linkedinPages] org',
+              organizationId,
+              'failed:',
+              orgErr?.response?.status,
+              orgErr?.response?.data?.message || orgErr?.message
+            );
+            return null;
+          }
+        })
+      )
+    ).filter((p): p is { organizationId: string; name: string; vanityName: string } => p !== null);
+
+    console.log('[linkedinPages] returning', pages.length, 'pages');
     return res.json(pages);
   } catch (err: any) {
     const status = err?.response?.status;
