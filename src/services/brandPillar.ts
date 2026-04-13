@@ -1,3 +1,4 @@
+import { google } from 'googleapis';
 import { pool } from '../db/cache';
 import { getValidAccessToken } from './tokenManager';
 
@@ -129,58 +130,15 @@ async function refreshGoogleAccessToken(
   return data.access_token;
 }
 
-interface ScTotalsRow {
+interface ScRow {
+  keys?: string[];
   clicks?: number;
   impressions?: number;
   ctr?: number;
   position?: number;
 }
 
-interface ScQueryRow {
-  keys: string[];
-  clicks: number;
-  impressions: number;
-  ctr: number;
-  position: number;
-}
-
-async function scQuery(
-  accessToken: string,
-  siteUrl: string,
-  body: Record<string, unknown>
-): Promise<{ rows?: Array<ScTotalsRow & ScQueryRow> }> {
-  const encoded = encodeURIComponent(siteUrl);
-  const response = await fetch(
-    `https://www.googleapis.com/webmasters/v3/sites/${encoded}/searchAnalytics/query`,
-    {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(body),
-    }
-  );
-
-  if (!response.ok) {
-    const errText = await response.text();
-    const err = new Error(
-      `Search Console API error ${response.status}: ${errText}`
-    ) as Error & { status?: number };
-    err.status = response.status;
-    throw err;
-  }
-
-  return response.json() as Promise<{ rows?: Array<ScTotalsRow & ScQueryRow> }>;
-}
-
-function averagePosition(rows: ScQueryRow[] | undefined): number {
-  if (!rows || rows.length === 0) return 0;
-  const sum = rows.reduce((acc, r) => acc + (r.position ?? 0), 0);
-  return sum / rows.length;
-}
-
-async function fetchBrandData(
+async function fetchSearchConsoleData(
   accessToken: string,
   siteUrl: string
 ): Promise<{
@@ -188,53 +146,73 @@ async function fetchBrandData(
   previous: { impressions: number; clicks: number; avgPosition: number; ctr: number };
   topQueries: BrandTopQuery[];
 }> {
-  // last 7 days (inclusive range of 7 days ending yesterday)
+  // Build the googleapis auth client — same pattern as GA4 in websitePillar.ts
+  const oauth2Client = new google.auth.OAuth2(
+    process.env.GOOGLE_CLIENT_ID,
+    process.env.GOOGLE_CLIENT_SECRET
+  );
+  oauth2Client.setCredentials({ access_token: accessToken });
+
+  const webmasters = google.webmasters({ version: 'v3', auth: oauth2Client });
+
+  // Last 7 days (ending yesterday) vs the 7 days before that
   const yesterday = new Date();
   yesterday.setDate(yesterday.getDate() - 1);
   const currentEnd = new Date(yesterday);
   const currentStart = new Date(yesterday);
   currentStart.setDate(currentStart.getDate() - 6);
-
   const previousEnd = new Date(currentStart);
   previousEnd.setDate(previousEnd.getDate() - 1);
   const previousStart = new Date(previousEnd);
   previousStart.setDate(previousStart.getDate() - 6);
 
   const [currentResp, previousResp, queriesResp] = await Promise.all([
-    scQuery(accessToken, siteUrl, {
-      startDate: fmtDate(currentStart),
-      endDate: fmtDate(currentEnd),
-      dimensions: ['date'],
+    webmasters.searchanalytics.query({
+      siteUrl,
+      requestBody: {
+        startDate: fmtDate(currentStart),
+        endDate: fmtDate(currentEnd),
+        dimensions: ['date'],
+      },
     }),
-    scQuery(accessToken, siteUrl, {
-      startDate: fmtDate(previousStart),
-      endDate: fmtDate(previousEnd),
-      dimensions: ['date'],
+    webmasters.searchanalytics.query({
+      siteUrl,
+      requestBody: {
+        startDate: fmtDate(previousStart),
+        endDate: fmtDate(previousEnd),
+        dimensions: ['date'],
+      },
     }),
-    scQuery(accessToken, siteUrl, {
-      startDate: fmtDate(currentStart),
-      endDate: fmtDate(currentEnd),
-      dimensions: ['query'],
-      rowLimit: 10,
-      orderBy: [{ fieldName: 'clicks', sortOrder: 'DESCENDING' }],
+    webmasters.searchanalytics.query({
+      siteUrl,
+      requestBody: {
+        startDate: fmtDate(currentStart),
+        endDate: fmtDate(currentEnd),
+        dimensions: ['query'],
+        rowLimit: 10,
+        orderBy: [{ fieldName: 'clicks', sortOrder: 'DESCENDING' }],
+      },
     }),
   ]);
 
-  const totals = (rows: ScQueryRow[] | undefined) => {
+  const totals = (rows: ScRow[] | undefined) => {
     const list = rows ?? [];
     const impressions = list.reduce((s, r) => s + (r.impressions ?? 0), 0);
     const clicks = list.reduce((s, r) => s + (r.clicks ?? 0), 0);
-    const avgPosition = averagePosition(list);
+    const avgPosition =
+      list.length > 0
+        ? list.reduce((s, r) => s + (r.position ?? 0), 0) / list.length
+        : 0;
     const ctr = impressions > 0 ? (clicks / impressions) * 100 : 0;
     return { impressions, clicks, avgPosition, ctr };
   };
 
-  const current = totals(currentResp.rows as ScQueryRow[] | undefined);
-  const previous = totals(previousResp.rows as ScQueryRow[] | undefined);
+  const current = totals(currentResp.data.rows as ScRow[] | undefined);
+  const previous = totals(previousResp.data.rows as ScRow[] | undefined);
 
-  const topQueries: BrandTopQuery[] = ((queriesResp.rows ?? []) as ScQueryRow[]).map(
+  const topQueries: BrandTopQuery[] = ((queriesResp.data.rows ?? []) as ScRow[]).map(
     (row) => ({
-      query: row.keys[0],
+      query: row.keys?.[0] ?? '',
       clicks: row.clicks ?? 0,
       impressions: row.impressions ?? 0,
       position: row.position ?? 0,
@@ -265,6 +243,7 @@ export async function getBrandPillar(tenantId: string): Promise<BrandPillar> {
     !connResult.rows[0].access_token ||
     !connResult.rows[0].selected_search_console_site_url
   ) {
+    console.log(`[brandPillar] No Search Console site selected for tenant ${tenantId}`);
     const disconnected: BrandPillar = { connected: false };
     await writeCache(tenantId, disconnected);
     return disconnected;
@@ -274,6 +253,8 @@ export async function getBrandPillar(tenantId: string): Promise<BrandPillar> {
     refresh_token,
     selected_search_console_site_url: siteUrl,
   } = connResult.rows[0];
+
+  console.log(`[brandPillar] Fetching Search Console data for tenant ${tenantId} site ${siteUrl}`);
 
   // 3. Obtain a valid access token (proactive refresh handled inside)
   let accessToken: string;
@@ -287,13 +268,15 @@ export async function getBrandPillar(tenantId: string): Promise<BrandPillar> {
   // 4. Call Search Console. On 401/403, refresh once and retry.
   let scData;
   try {
-    scData = await fetchBrandData(accessToken, siteUrl);
+    scData = await fetchSearchConsoleData(accessToken, siteUrl);
   } catch (err: any) {
-    const status = err?.status ?? err?.code ?? err?.response?.status;
+    const status = err?.code ?? err?.response?.status ?? err?.status;
     if ((status === 401 || status === 403) && refresh_token) {
+      console.log(`[brandPillar] Token rejected (${status}); refreshing and retrying for tenant ${tenantId}`);
       accessToken = await refreshGoogleAccessToken(tenantId, refresh_token);
-      scData = await fetchBrandData(accessToken, siteUrl);
+      scData = await fetchSearchConsoleData(accessToken, siteUrl);
     } else {
+      console.error('[brandPillar] Search Console API error for tenant', tenantId, ':', err?.message ?? err);
       throw err;
     }
   }
