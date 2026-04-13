@@ -2,11 +2,10 @@ import { Router, Request, Response } from 'express';
 import { pool } from '../db/cache';
 import { getGoogleAdsMetrics } from '../services/googleAdsClient';
 import { getMetaAdsMetrics } from '../services/metaAdsClient';
-import { getMetaSocialMetrics } from '../services/metaSocialClient';
 import { getLinkedInAdsMetrics } from '../services/linkedinAdsClient';
-import { getLinkedInSocialMetrics } from '../services/linkedinSocialClient';
 import { getWebsitePillar, WebsitePillar } from '../services/websitePillar';
 import { getBrandPillar, BrandPillar } from '../services/brandPillar';
+import { getSocialPillar, SocialPillar } from '../services/facebookSocialPillar';
 
 const router = Router();
 
@@ -16,19 +15,17 @@ const CACHE_DURATION_MS = 24 * 60 * 60 * 1000; // 24 hours
 const DEFAULT_ADS = { spend: 0, cpa: 0, roas: 0, conversions: 0, ctr: 0, clicks: 0, impressions: 0, google: { spend: 0, cpa: 0, roas: 0, conversions: 0, ctr: 0, clicks: 0, impressions: 0 }, meta: { spend: 0, cpa: 0, roas: 0, conversions: 0, ctr: 0, clicks: 0, impressions: 0 }, linkedin: { spend: 0, cpa: 0, roas: 0, conversions: 0, ctr: 0, clicks: 0, impressions: 0 } };
 const DEFAULT_WEBSITE: WebsitePillar = { connected: false };
 const DEFAULT_BRAND: BrandPillar = { connected: false };
-const DEFAULT_SOCIAL = { reach: 0, impressions: 0, engagementRate: 0, followerGrowth: 0, platforms: { facebook: { impressions: 0, engagedUsers: 0, fans: 0 }, instagram: { impressions: 0, reach: 0, followerCount: 0 }, linkedin: { impressions: 0, reach: 0, engagementRate: 0, followerCount: 0 } } };
-const DEFAULT_LINKEDIN_SOCIAL = { impressions: 0, reach: 0, engagementRate: 0, followerCount: 0 };
+const DEFAULT_SOCIAL_PILLAR: SocialPillar = { connected: false };
 
 async function fetchFreshDashboardData(tenantId: string) {
   // Fetch all sources in parallel — if one fails, others still return data
-  const [websiteResult, adsResult, brandResult, metaAdsResult, metaSocialResult, linkedinAdsResult, linkedinSocialResult] = await Promise.allSettled([
+  const [websiteResult, adsResult, brandResult, metaAdsResult, socialResult, linkedinAdsResult] = await Promise.allSettled([
     getWebsitePillar(tenantId),
     getGoogleAdsMetrics(tenantId),
     getBrandPillar(tenantId),
     getMetaAdsMetrics(tenantId),
-    getMetaSocialMetrics(tenantId),
+    getSocialPillar(tenantId),
     getLinkedInAdsMetrics(tenantId),
-    getLinkedInSocialMetrics(tenantId),
   ]);
 
   let website: WebsitePillar = DEFAULT_WEBSITE;
@@ -80,28 +77,12 @@ async function fetchFreshDashboardData(tenantId: string) {
     console.error('[dashboard] Search Console error for tenant', tenantId, ':', brandResult.reason);
   }
 
-  const metaSocial = metaSocialResult.status === 'fulfilled'
-    ? metaSocialResult.value
-    : (console.error('[dashboard] Meta Social error for tenant', tenantId, ':', (metaSocialResult as PromiseRejectedResult).reason), DEFAULT_SOCIAL);
-
-  const linkedinSocial = linkedinSocialResult.status === 'fulfilled'
-    ? linkedinSocialResult.value
-    : (console.error('[dashboard] LinkedIn Social error for tenant', tenantId, ':', (linkedinSocialResult as PromiseRejectedResult).reason), DEFAULT_LINKEDIN_SOCIAL);
-
-  const social = {
-    ...metaSocial,
-    impressions: metaSocial.impressions + linkedinSocial.impressions,
-    reach: metaSocial.reach + linkedinSocial.reach,
-    platforms: {
-      ...metaSocial.platforms,
-      linkedin: {
-        impressions: linkedinSocial.impressions,
-        reach: linkedinSocial.reach,
-        engagementRate: linkedinSocial.engagementRate,
-        followerCount: linkedinSocial.followerCount,
-      },
-    },
-  };
+  let social: SocialPillar = DEFAULT_SOCIAL_PILLAR;
+  if (socialResult.status === 'fulfilled') {
+    social = socialResult.value;
+  } else {
+    console.error('[dashboard] Social pillar error for tenant', tenantId, ':', socialResult.reason);
+  }
 
   return { ads, website, brand, social };
 }
@@ -138,9 +119,10 @@ router.get('/', async (req: Request, res: Response) => {
     if (cached.rows.length > 0 && !cached.rows[0].is_expired) {
       console.log(`[dashboard] Serving cached data for tenant ${tenantId}`);
       const cachedData = cached.rows[0].data;
-      const [websiteRes, brandRes] = await Promise.allSettled([
+      const [websiteRes, brandRes, socialRes] = await Promise.allSettled([
         getWebsitePillar(tenantId),
         getBrandPillar(tenantId),
+        getSocialPillar(tenantId),
       ]);
       const website: WebsitePillar =
         websiteRes.status === 'fulfilled' ? websiteRes.value : DEFAULT_WEBSITE;
@@ -152,7 +134,12 @@ router.get('/', async (req: Request, res: Response) => {
       if (brandRes.status === 'rejected') {
         console.error('[dashboard] Brand pillar fetch error (cached path):', brandRes.reason);
       }
-      return res.json({ ...cachedData, website, brand });
+      const social: SocialPillar =
+        socialRes.status === 'fulfilled' ? socialRes.value : DEFAULT_SOCIAL_PILLAR;
+      if (socialRes.status === 'rejected') {
+        console.error('[dashboard] Social pillar fetch error (cached path):', socialRes.reason);
+      }
+      return res.json({ ...cachedData, website, brand, social });
     }
   } catch (err) {
     console.error('[dashboard] Cache read error:', err);
@@ -182,8 +169,14 @@ router.get('/refresh', async (req: Request, res: Response) => {
   try {
     await pool.query(
       `DELETE FROM tenant_cache
-       WHERE tenant_id = $1 AND cache_key IN ($2, $3, $4)`,
-      [tenantId, CACHE_KEY, `${tenantId}:dashboard:website`, `${tenantId}:dashboard:brand`]
+       WHERE tenant_id = $1 AND cache_key IN ($2, $3, $4, $5)`,
+      [
+        tenantId,
+        CACHE_KEY,
+        `${tenantId}:dashboard:website`,
+        `${tenantId}:dashboard:brand`,
+        `${tenantId}:dashboard:social`,
+      ]
     );
     console.log(`[dashboard] Cleared cache for tenant ${tenantId}`);
   } catch (err) {

@@ -215,14 +215,43 @@ export interface AnalyticsDashboardResponse {
   };
   website: WebsitePillar;
   brand: BrandPillar;
-  social: {
-    reach: number;
-    impressions: number;
-    engagementRate: number;
-    followerGrowth: number;
-    platforms?: Record<string, unknown>;
+  social: SocialPillar;
+}
+
+export interface SocialMetric {
+  current: number;
+  previous: number;
+  change: number;
+}
+
+export interface FacebookPlatformConnected {
+  connected: true;
+  pageName: string;
+  metrics: {
+    impressions: SocialMetric;
+    engagedUsers: SocialMetric;
+    fans: SocialMetric;
+    newFans: SocialMetric;
   };
 }
+
+export type FacebookPlatform =
+  | FacebookPlatformConnected
+  | { connected: false };
+
+export type SocialPillar =
+  | { connected: false }
+  | {
+      connected: true;
+      platforms: {
+        facebook: FacebookPlatform;
+        instagram: { connected: false };
+        linkedin: { connected: false };
+      };
+      reach: SocialMetric;
+      impressions: SocialMetric;
+      engagementRate: SocialMetric;
+    };
 
 export const api = {
   /**

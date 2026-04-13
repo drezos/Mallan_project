@@ -4,7 +4,7 @@ import { useUser } from '@clerk/clerk-react';
 import { RefreshCw, Loader2, WifiOff, Star, Link2, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import { useDashboard } from '../hooks/useDashboard';
 import { useAnalyticsDashboard } from '../hooks/useAnalyticsDashboard';
-import type { AnalyticsDashboardResponse, AdsPlatformMetrics, WebsitePillar, WebsiteMetric, BrandPillar, BrandMetric } from '../lib/api';
+import type { AnalyticsDashboardResponse, AdsPlatformMetrics, WebsitePillar, WebsiteMetric, BrandPillar, BrandMetric, SocialPillar, SocialMetric, FacebookPlatform } from '../lib/api';
 
 type PillarTab = 'ads' | 'social' | 'website' | 'brand';
 
@@ -29,10 +29,6 @@ function fmt(value: number | undefined | null, type: 'currency' | 'number' | 'pe
 
 function platformIsEmpty(p?: AdsPlatformMetrics): boolean {
   return !p || (p.spend === 0 && p.clicks === 0 && p.impressions === 0);
-}
-
-function socialIsEmpty(s?: AnalyticsDashboardResponse['social']): boolean {
-  return !s || (s.reach === 0 && s.impressions === 0 && s.engagementRate === 0 && s.followerGrowth === 0);
 }
 
 export function Dashboard() {
@@ -163,11 +159,8 @@ export function Dashboard() {
           brand={analytics?.brand}
           isLoading={analyticsQuery.isLoading}
         />
-        <NorthStarCard
-          label="Social"
-          sublabel="Reach"
-          value={analytics?.social?.reach ? fmt(analytics.social.reach, 'number') : '—'}
-          color="pink"
+        <SocialNorthStarCard
+          social={analytics?.social}
           isLoading={analyticsQuery.isLoading}
         />
       </div>
@@ -372,35 +365,174 @@ function PlatformRow({
 // Social Tab
 // ===========================================
 
+function SocialNorthStarCard({
+  social,
+  isLoading,
+}: {
+  social?: SocialPillar;
+  isLoading: boolean;
+}) {
+  if (isLoading) {
+    return (
+      <div className="card p-5 animate-pulse">
+        <div className="h-3 bg-slate-200 rounded w-1/2 mb-3" />
+        <div className="h-3 bg-slate-100 rounded w-1/3 mb-4" />
+        <div className="h-7 bg-slate-200 rounded w-3/4" />
+      </div>
+    );
+  }
+
+  const fbConnected =
+    social?.connected === true && social.platforms.facebook.connected === true;
+
+  return (
+    <div className="card p-5">
+      <div className="flex items-center gap-2 mb-1">
+        <span className="w-2 h-2 rounded-full flex-shrink-0 bg-pink-400" />
+        <span className="text-xs font-comfortaa font-semibold text-brew-brown/70 uppercase tracking-wide">
+          Social
+        </span>
+      </div>
+      <p className="text-xs text-slate-400 mb-2">Impressions</p>
+      {fbConnected && social?.connected ? (
+        <>
+          <p className="text-2xl font-display font-bold text-brew-dark">
+            {fmt(social.impressions.current, 'number')}
+          </p>
+          <div className="mt-1">
+            <ChangeBadge change={social.impressions.change} />
+          </div>
+        </>
+      ) : (
+        <Link
+          to="/connections"
+          className="inline-flex items-center gap-1.5 text-sm text-brew-orange hover:text-brew-orange/80 mt-1"
+        >
+          <Link2 className="w-3.5 h-3.5" aria-hidden="true" />
+          Connect Meta to see social data
+        </Link>
+      )}
+    </div>
+  );
+}
+
+function SocialMetricCell({
+  label,
+  metric,
+  format,
+}: {
+  label: string;
+  metric: SocialMetric;
+  format: (v: number) => string;
+}) {
+  return (
+    <div>
+      <p className="flex items-center gap-1 text-xs text-slate-400 mb-1">
+        <Star className="w-2.5 h-2.5 text-brew-orange/30 flex-shrink-0" aria-hidden="true" />
+        {label}
+      </p>
+      <div className="flex items-baseline gap-2 flex-wrap">
+        <p className="text-lg font-display font-semibold text-brew-dark">{format(metric.current)}</p>
+        <ChangeBadge change={metric.change} />
+      </div>
+      <p className="text-xs text-slate-400 mt-0.5">Prev: {format(metric.previous)}</p>
+    </div>
+  );
+}
+
+function PlatformNotConnectedRow({ name }: { name: string }) {
+  return (
+    <div className="card p-4 flex items-center justify-between border-dashed">
+      <span className="text-sm font-medium text-slate-400">{name}</span>
+      <div className="flex items-center gap-1.5 text-xs text-brew-orange/60">
+        <Link2 className="w-3.5 h-3.5" aria-hidden="true" />
+        <span>Not connected</span>
+      </div>
+    </div>
+  );
+}
+
+function FacebookSection({ facebook }: { facebook: FacebookPlatform }) {
+  if (!facebook.connected) {
+    return <PlatformNotConnectedRow name="Facebook" />;
+  }
+  const m = facebook.metrics;
+  return (
+    <div className="card p-6">
+      <div className="flex items-baseline justify-between mb-4 flex-wrap gap-2">
+        <h3 className="text-sm font-comfortaa font-semibold text-brew-dark">Facebook</h3>
+        {facebook.pageName && (
+          <p className="text-xs text-slate-400">
+            Page: <span className="text-slate-500">{facebook.pageName}</span> · Last 7 days vs previous 7 days
+          </p>
+        )}
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <SocialMetricCell label="Impressions" metric={m.impressions} format={(v) => fmt(v, 'number')} />
+        <SocialMetricCell label="Engaged Users" metric={m.engagedUsers} format={(v) => fmt(v, 'number')} />
+        <SocialMetricCell label="Fans" metric={m.fans} format={(v) => fmt(v, 'number')} />
+        <SocialMetricCell label="New Fans" metric={m.newFans} format={(v) => fmt(v, 'number')} />
+      </div>
+    </div>
+  );
+}
+
 function SocialTabContent({
   data,
   isLoading,
 }: {
-  data?: AnalyticsDashboardResponse['social'];
+  data?: SocialPillar;
   isLoading: boolean;
 }) {
   if (isLoading) return <TabSkeleton />;
 
-  if (socialIsEmpty(data)) {
+  const fbConnected =
+    data?.connected === true && data.platforms.facebook.connected === true;
+
+  if (!fbConnected) {
     return (
       <div className="card p-10 flex flex-col items-center justify-center text-center border-dashed">
         <div className="w-12 h-12 bg-brew-orange/10 rounded-full flex items-center justify-center mb-4">
           <Link2 className="w-5 h-5 text-brew-orange/50" aria-hidden="true" />
         </div>
-        <p className="text-brew-dark/60 font-comfortaa font-semibold mb-1">Connect Meta to see your social data</p>
-        <p className="text-slate-400 text-sm">Once connected, you'll see reach, impressions, and more.</p>
+        <p className="text-brew-dark/60 font-comfortaa font-semibold mb-1">
+          Connect Meta to see social data
+        </p>
+        <p className="text-slate-400 text-sm mb-4">
+          Once connected, you'll see Facebook Page impressions, engagement, and follower growth.
+        </p>
+        <Link
+          to="/connections"
+          className="px-4 py-2 bg-forest-500 text-white rounded-lg hover:bg-forest-600 transition-colors text-sm inline-flex items-center gap-2"
+        >
+          <Link2 className="w-4 h-4" aria-hidden="true" />
+          Go to Connections
+        </Link>
       </div>
     );
   }
 
+  // data.connected is true here
+  const connected = data as Extract<SocialPillar, { connected: true }>;
+
   return (
-    <div className="card p-6">
-      <h3 className="text-sm font-comfortaa font-semibold text-brew-dark mb-4">Social Overview</h3>
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <MetricCell label="Reach" value={fmt(data!.reach, 'number')} />
-        <MetricCell label="Impressions" value={fmt(data!.impressions, 'number')} />
-        <MetricCell label="Engagement Rate" value={`${data!.engagementRate?.toFixed(2) ?? '—'}%`} />
-        <MetricCell label="Follower Growth" value={fmt(data!.followerGrowth, 'number')} />
+    <div className="space-y-4">
+      {/* Combined totals across connected platforms */}
+      <div className="card p-6">
+        <h3 className="text-sm font-comfortaa font-semibold text-brew-dark mb-4">Social Overview</h3>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+          <SocialMetricCell label="Reach" metric={connected.reach} format={(v) => fmt(v, 'number')} />
+          <SocialMetricCell label="Impressions" metric={connected.impressions} format={(v) => fmt(v, 'number')} />
+          <SocialMetricCell label="Engagement Rate" metric={connected.engagementRate} format={(v) => `${v.toFixed(2)}%`} />
+        </div>
+      </div>
+
+      {/* Per-platform breakdown */}
+      <div className="space-y-3">
+        <h3 className="text-sm font-comfortaa font-semibold text-brew-dark">Platform Breakdown</h3>
+        <FacebookSection facebook={connected.platforms.facebook} />
+        <PlatformNotConnectedRow name="Instagram" />
+        <PlatformNotConnectedRow name="LinkedIn" />
       </div>
     </div>
   );
