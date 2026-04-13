@@ -181,6 +181,32 @@ export type WebsitePillar =
       topSources: Array<{ source: string; sessions: number }>;
     };
 
+export interface BrandMetric {
+  current: number;
+  previous: number;
+  change: number;
+}
+
+export type BrandPillar =
+  | { connected: false }
+  | {
+      connected: true;
+      siteUrl: string;
+      metrics: {
+        impressions: BrandMetric;
+        clicks: BrandMetric;
+        avgPosition: BrandMetric;
+        ctr: BrandMetric;
+      };
+      topQueries: Array<{
+        query: string;
+        clicks: number;
+        impressions: number;
+        position: number;
+        ctr: number;
+      }>;
+    };
+
 export interface AnalyticsDashboardResponse {
   ads: AdsPlatformMetrics & {
     google: AdsPlatformMetrics;
@@ -188,12 +214,7 @@ export interface AnalyticsDashboardResponse {
     linkedin: AdsPlatformMetrics;
   };
   website: WebsitePillar;
-  brand: {
-    impressions: number;
-    clicks: number;
-    avgPosition: number;
-    topQueries: Array<{ query: string; clicks: number; impressions: number; position: number }>;
-  };
+  brand: BrandPillar;
   social: {
     reach: number;
     impressions: number;
