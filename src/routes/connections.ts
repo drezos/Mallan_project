@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express';
+import { google } from 'googleapis';
 import { pool } from '../db/cache';
 
 const router = Router();
@@ -28,6 +29,125 @@ router.get('/', async (req: Request, res: Response) => {
   } catch (err) {
     console.error('Error fetching connections:', err);
     return res.status(500).json({ error: 'Failed to fetch connections' });
+  }
+});
+
+const TOKEN_REFRESH_URL = 'https://oauth2.googleapis.com/token';
+
+async function refreshGoogleAccessToken(
+  tenantId: string,
+  refreshToken: string
+): Promise<string> {
+  const response = await fetch(TOKEN_REFRESH_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id: process.env.GOOGLE_CLIENT_ID!,
+      client_secret: process.env.GOOGLE_CLIENT_SECRET!,
+      refresh_token: refreshToken,
+      grant_type: 'refresh_token',
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Failed to refresh Google token: ${errorText}`);
+  }
+
+  const data = (await response.json()) as {
+    access_token: string;
+    expires_in: number;
+  };
+  const newExpiresAt = new Date(Date.now() + data.expires_in * 1000);
+
+  await pool.query(
+    `UPDATE tenant_connections
+     SET access_token = $1, expires_at = $2
+     WHERE tenant_id = $3 AND platform = 'google'`,
+    [data.access_token, newExpiresAt, tenantId]
+  );
+
+  return data.access_token;
+}
+
+// GET /api/connections/google/ga4-properties?tenant_id={uuid}
+// Lists GA4 properties available to the tenant's connected Google account.
+router.get('/google/ga4-properties', async (req: Request, res: Response) => {
+  const { tenant_id } = req.query;
+
+  if (!tenant_id || typeof tenant_id !== 'string') {
+    return res.status(400).json({ error: 'tenant_id is required' });
+  }
+
+  try {
+    const result = await pool.query(
+      `SELECT access_token, refresh_token, expires_at
+       FROM tenant_connections
+       WHERE tenant_id = $1 AND platform = 'google'`,
+      [tenant_id]
+    );
+
+    if (result.rows.length === 0 || !result.rows[0].access_token) {
+      return res.status(401).json({ error: 'No Google connection found for tenant' });
+    }
+
+    const { refresh_token, expires_at } = result.rows[0];
+    let accessToken: string = result.rows[0].access_token;
+
+    // Proactively refresh if the token is expired or about to expire.
+    const expiryBufferMs = 5 * 60 * 1000;
+    const isExpired =
+      !expires_at || new Date(expires_at).getTime() <= Date.now() + expiryBufferMs;
+    if (isExpired) {
+      if (!refresh_token) {
+        return res
+          .status(401)
+          .json({ error: 'Google access token expired and no refresh token available' });
+      }
+      accessToken = await refreshGoogleAccessToken(tenant_id, refresh_token);
+    }
+
+    const callAccountSummaries = async (token: string) => {
+      const oauth2Client = new google.auth.OAuth2(
+        process.env.GOOGLE_CLIENT_ID,
+        process.env.GOOGLE_CLIENT_SECRET
+      );
+      oauth2Client.setCredentials({ access_token: token });
+      const analyticsadmin = google.analyticsadmin({
+        version: 'v1beta',
+        auth: oauth2Client,
+      });
+      return analyticsadmin.accountSummaries.list({ pageSize: 200 });
+    };
+
+    let response;
+    try {
+      response = await callAccountSummaries(accessToken);
+    } catch (err: any) {
+      // If the token was invalidated server-side, try one more time after refreshing.
+      const status = err?.code || err?.response?.status;
+      if ((status === 401 || status === 403) && refresh_token) {
+        accessToken = await refreshGoogleAccessToken(tenant_id, refresh_token);
+        response = await callAccountSummaries(accessToken);
+      } else {
+        throw err;
+      }
+    }
+
+    const summaries = response.data.accountSummaries ?? [];
+    const properties = summaries.flatMap((acct) =>
+      (acct.propertySummaries ?? []).map((prop) => ({
+        propertyId: (prop.property ?? '').replace(/^properties\//, ''),
+        displayName: prop.displayName ?? '',
+        accountName: acct.displayName ?? '',
+      }))
+    );
+
+    return res.json(properties);
+  } catch (err: any) {
+    console.error('Error fetching GA4 properties:', err);
+    const message = err?.response?.data?.error?.message || err?.message || 'Unknown error';
+    return res.status(500).json({ error: `Failed to fetch GA4 properties: ${message}` });
   }
 });
 
