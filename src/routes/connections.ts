@@ -542,7 +542,7 @@ router.get('/linkedin/pages', async (req: Request, res: Response) => {
         : '****';
     const headers = {
       Authorization: `Bearer ${accessToken}`,
-      'LinkedIn-Version': '202401',
+      'LinkedIn-Version': '202505',
       'X-Restli-Protocol-Version': '2.0.0',
     };
 
