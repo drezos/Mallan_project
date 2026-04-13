@@ -409,4 +409,86 @@ router.get('/meta/facebook-pages', async (req: Request, res: Response) => {
   }
 });
 
+// GET /api/connections/meta/selected-facebook-page?tenant_id={uuid}
+// Returns the Facebook Page the tenant has picked for their Meta connection (if any).
+router.get('/meta/selected-facebook-page', async (req: Request, res: Response) => {
+  const { tenant_id } = req.query;
+
+  if (!tenant_id || typeof tenant_id !== 'string') {
+    return res.status(400).json({ error: 'tenant_id is required' });
+  }
+
+  try {
+    const result = await pool.query(
+      `SELECT selected_facebook_page_id,
+              selected_facebook_page_name,
+              selected_facebook_instagram_account_id
+       FROM tenant_connections
+       WHERE tenant_id = $1 AND platform = 'meta'`,
+      [tenant_id]
+    );
+
+    if (result.rows.length === 0 || !result.rows[0].selected_facebook_page_id) {
+      return res.json({ pageId: null, pageName: null, instagramAccountId: null });
+    }
+
+    return res.json({
+      pageId: result.rows[0].selected_facebook_page_id,
+      pageName: result.rows[0].selected_facebook_page_name,
+      instagramAccountId: result.rows[0].selected_facebook_instagram_account_id,
+    });
+  } catch (err) {
+    console.error('Error fetching selected Facebook Page:', err);
+    return res.status(500).json({ error: 'Failed to fetch selected Facebook Page' });
+  }
+});
+
+// POST /api/connections/meta/facebook-page
+// Body: { tenant_id, pageId, pageName, pageAccessToken, instagramAccountId }
+// Stores the Facebook Page the tenant has picked for their Meta connection.
+// The page_access_token is a Page-scoped token required for Insights API calls.
+router.post('/meta/facebook-page', async (req: Request, res: Response) => {
+  const { tenant_id, pageId, pageName, pageAccessToken, instagramAccountId } = req.body ?? {};
+
+  if (!tenant_id || typeof tenant_id !== 'string') {
+    return res.status(400).json({ error: 'tenant_id is required' });
+  }
+  if (!pageId || typeof pageId !== 'string') {
+    return res.status(400).json({ error: 'pageId is required' });
+  }
+  if (typeof pageName !== 'string') {
+    return res.status(400).json({ error: 'pageName is required' });
+  }
+  if (!pageAccessToken || typeof pageAccessToken !== 'string') {
+    return res.status(400).json({ error: 'pageAccessToken is required' });
+  }
+
+  try {
+    const result = await pool.query(
+      `UPDATE tenant_connections
+       SET selected_facebook_page_id = $1,
+           selected_facebook_page_name = $2,
+           selected_facebook_page_access_token = $3,
+           selected_facebook_instagram_account_id = $4
+       WHERE tenant_id = $5 AND platform = 'meta'`,
+      [
+        pageId,
+        pageName,
+        pageAccessToken,
+        instagramAccountId ?? null,
+        tenant_id,
+      ]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'No Meta connection found for tenant' });
+    }
+
+    return res.json({ success: true });
+  } catch (err) {
+    console.error('Error saving selected Facebook Page:', err);
+    return res.status(500).json({ error: 'Failed to save selected Facebook Page' });
+  }
+});
+
 export default router;
