@@ -4,7 +4,7 @@ import { useUser } from '@clerk/clerk-react';
 import { RefreshCw, Loader2, WifiOff, Star, Link2, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import { useDashboard } from '../hooks/useDashboard';
 import { useAnalyticsDashboard } from '../hooks/useAnalyticsDashboard';
-import type { AnalyticsDashboardResponse, AdsPlatformMetrics, WebsitePillar, WebsiteMetric } from '../lib/api';
+import type { AnalyticsDashboardResponse, AdsPlatformMetrics, WebsitePillar, WebsiteMetric, BrandPillar, BrandMetric } from '../lib/api';
 
 type PillarTab = 'ads' | 'social' | 'website' | 'brand';
 
@@ -159,11 +159,8 @@ export function Dashboard() {
           website={analytics?.website}
           isLoading={analyticsQuery.isLoading}
         />
-        <NorthStarCard
-          label="Brand"
-          sublabel="Total Impressions"
-          value={analytics?.brand ? fmt(analytics.brand.impressions, 'number') : '—'}
-          color="violet"
+        <BrandNorthStarCard
+          brand={analytics?.brand}
           isLoading={analyticsQuery.isLoading}
         />
         <NorthStarCard
@@ -628,71 +625,195 @@ function WebsiteTabContent({
 }
 
 // ===========================================
+// Brand — shared helpers + North Star
+// ===========================================
+
+function BrandNorthStarCard({
+  brand,
+  isLoading,
+}: {
+  brand?: BrandPillar;
+  isLoading: boolean;
+}) {
+  if (isLoading) {
+    return (
+      <div className="card p-5 animate-pulse">
+        <div className="h-3 bg-slate-200 rounded w-1/2 mb-3" />
+        <div className="h-3 bg-slate-100 rounded w-1/3 mb-4" />
+        <div className="h-7 bg-slate-200 rounded w-3/4" />
+      </div>
+    );
+  }
+
+  const connected = brand?.connected === true;
+
+  return (
+    <div className="card p-5">
+      <div className="flex items-center gap-2 mb-1">
+        <span className="w-2 h-2 rounded-full flex-shrink-0 bg-violet-500" />
+        <span className="text-xs font-comfortaa font-semibold text-brew-brown/70 uppercase tracking-wide">
+          Brand
+        </span>
+      </div>
+      <p className="text-xs text-slate-400 mb-2">Total Impressions</p>
+      {connected ? (
+        <>
+          <p className="text-2xl font-display font-bold text-brew-dark">
+            {fmt(brand!.metrics.impressions.current, 'number')}
+          </p>
+          <div className="mt-1">
+            <ChangeBadge change={brand!.metrics.impressions.change} />
+          </div>
+        </>
+      ) : (
+        <Link
+          to="/connections"
+          className="inline-flex items-center gap-1.5 text-sm text-brew-orange hover:text-brew-orange/80 mt-1"
+        >
+          <Link2 className="w-3.5 h-3.5" aria-hidden="true" />
+          Connect Google to see brand data
+        </Link>
+      )}
+    </div>
+  );
+}
+
+// ===========================================
 // Brand Tab
 // ===========================================
+
+function BrandMetricCell({
+  label,
+  metric,
+  format,
+  invertChange = false,
+}: {
+  label: string;
+  metric: BrandMetric;
+  format: (v: number) => string;
+  invertChange?: boolean;
+}) {
+  return (
+    <div>
+      <p className="flex items-center gap-1 text-xs text-slate-400 mb-1">
+        <Star className="w-2.5 h-2.5 text-brew-orange/30 flex-shrink-0" aria-hidden="true" />
+        {label}
+      </p>
+      <div className="flex items-baseline gap-2 flex-wrap">
+        <p className="text-lg font-display font-semibold text-brew-dark">{format(metric.current)}</p>
+        <ChangeBadge change={metric.change} invert={invertChange} />
+      </div>
+      <p className="text-xs text-slate-400 mt-0.5">
+        Prev: {format(metric.previous)}
+      </p>
+    </div>
+  );
+}
 
 function BrandTabContent({
   data,
   isLoading,
 }: {
-  data?: AnalyticsDashboardResponse['brand'];
+  data?: BrandPillar;
   isLoading: boolean;
 }) {
   if (isLoading) return <TabSkeleton />;
 
-  const ctr =
-    data && data.impressions > 0
-      ? `${((data.clicks / data.impressions) * 100).toFixed(2)}%`
-      : '—';
+  if (!data || data.connected === false) {
+    return (
+      <div className="card p-10 flex flex-col items-center justify-center text-center border-dashed">
+        <div className="w-12 h-12 bg-brew-orange/10 rounded-full flex items-center justify-center mb-4">
+          <Link2 className="w-5 h-5 text-brew-orange/50" aria-hidden="true" />
+        </div>
+        <p className="text-brew-dark/60 font-comfortaa font-semibold mb-1">
+          Connect Google to see brand data
+        </p>
+        <p className="text-slate-400 text-sm mb-4">
+          Once connected, we'll pull impressions, clicks, and top queries from Search Console.
+        </p>
+        <Link
+          to="/connections"
+          className="px-4 py-2 bg-forest-500 text-white rounded-lg hover:bg-forest-600 transition-colors text-sm inline-flex items-center gap-2"
+        >
+          <Link2 className="w-4 h-4" aria-hidden="true" />
+          Go to Connections
+        </Link>
+      </div>
+    );
+  }
+
+  const m = data.metrics;
 
   return (
     <div className="space-y-4">
       <div className="card p-6">
-        <h3 className="text-sm font-comfortaa font-semibold text-brew-dark mb-4">Brand Search Overview</h3>
+        <div className="flex items-baseline justify-between mb-4 flex-wrap gap-2">
+          <h3 className="text-sm font-comfortaa font-semibold text-brew-dark">
+            Brand Search Overview
+          </h3>
+          <p className="text-xs text-slate-400">
+            Search Console: <span className="text-slate-500">{data.siteUrl}</span> · Last 7 days vs previous 7 days
+          </p>
+        </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <MetricCell label="Total Impressions" value={data ? fmt(data.impressions, 'number') : '—'} />
-          <MetricCell label="Total Clicks" value={data ? fmt(data.clicks, 'number') : '—'} />
-          <MetricCell label="Average Position" value={data ? data.avgPosition.toFixed(1) : '—'} />
-          <MetricCell label="CTR" value={ctr} />
+          <BrandMetricCell
+            label="Impressions"
+            metric={m.impressions}
+            format={(v) => fmt(v, 'number')}
+          />
+          <BrandMetricCell
+            label="Clicks"
+            metric={m.clicks}
+            format={(v) => fmt(v, 'number')}
+          />
+          <BrandMetricCell
+            label="Avg. Position"
+            metric={m.avgPosition}
+            format={(v) => v.toFixed(1)}
+            invertChange
+          />
+          <BrandMetricCell
+            label="CTR"
+            metric={m.ctr}
+            format={(v) => `${v.toFixed(2)}%`}
+          />
         </div>
       </div>
 
-      {data && data.topQueries.length > 0 && (
+      {data.topQueries.length > 0 && (
         <div className="card p-6">
           <h3 className="text-sm font-comfortaa font-semibold text-brew-dark mb-4">Top Search Queries</h3>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-xs text-slate-400 border-b border-slate-100">
+                  <th className="text-left pb-2 font-medium">#</th>
                   <th className="text-left pb-2 font-medium">Query</th>
                   <th className="text-right pb-2 font-medium">Clicks</th>
                   <th className="text-right pb-2 font-medium">Impressions</th>
-                  <th className="text-right pb-2 font-medium">CTR</th>
                   <th className="text-right pb-2 font-medium">Position</th>
+                  <th className="text-right pb-2 font-medium">CTR</th>
                 </tr>
               </thead>
               <tbody>
-                {data.topQueries.map(q => {
-                  const queryCtr =
-                    q.impressions > 0
-                      ? `${((q.clicks / q.impressions) * 100).toFixed(2)}%`
-                      : '—';
-                  return (
-                    <tr key={q.query} className="border-b border-slate-50 last:border-0">
-                      <td className="py-2.5 text-slate-600 truncate max-w-[200px]">{q.query}</td>
-                      <td className="py-2.5 text-right font-medium text-slate-800">
-                        {q.clicks.toLocaleString('nl-NL')}
-                      </td>
-                      <td className="py-2.5 text-right text-slate-500">
-                        {q.impressions.toLocaleString('nl-NL')}
-                      </td>
-                      <td className="py-2.5 text-right text-slate-500">{queryCtr}</td>
-                      <td className="py-2.5 text-right text-slate-500">
-                        {q.position != null ? q.position.toFixed(1) : '—'}
-                      </td>
-                    </tr>
-                  );
-                })}
+                {data.topQueries.map((q, i) => (
+                  <tr key={q.query} className="border-b border-slate-50 last:border-0">
+                    <td className="py-2.5 text-slate-400 w-8">{i + 1}</td>
+                    <td className="py-2.5 text-slate-600 truncate max-w-[240px]">{q.query}</td>
+                    <td className="py-2.5 text-right font-medium text-slate-800">
+                      {q.clicks.toLocaleString('nl-NL')}
+                    </td>
+                    <td className="py-2.5 text-right text-slate-500">
+                      {q.impressions.toLocaleString('nl-NL')}
+                    </td>
+                    <td className="py-2.5 text-right text-slate-500">
+                      {q.position != null ? q.position.toFixed(1) : '—'}
+                    </td>
+                    <td className="py-2.5 text-right text-slate-500">
+                      {q.ctr != null ? `${q.ctr.toFixed(2)}%` : '—'}
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
