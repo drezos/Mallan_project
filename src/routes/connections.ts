@@ -505,4 +505,97 @@ router.post('/meta/facebook-page', async (req: Request, res: Response) => {
   }
 });
 
+// GET /api/connections/linkedin/pages?tenant_id={uuid}
+// Lists LinkedIn Organizations (Company Pages) the tenant's connected LinkedIn
+// account has ADMINISTRATOR access to.
+//
+// TODO: Reading organization data requires the "r_organization_social" (or
+// "rw_organization_admin") scope. Our current LinkedIn OAuth scopes are:
+// openid, profile, email, w_member_social. Until we add the scope via the
+// LinkedIn Developer Portal Products tab and re-run the OAuth flow, this
+// endpoint will return 403.
+router.get('/linkedin/pages', async (req: Request, res: Response) => {
+  const { tenant_id } = req.query;
+
+  if (!tenant_id || typeof tenant_id !== 'string') {
+    return res.status(400).json({ error: 'tenant_id is required' });
+  }
+
+  try {
+    const result = await pool.query(
+      `SELECT access_token
+       FROM tenant_connections
+       WHERE tenant_id = $1 AND platform = 'linkedin'`,
+      [tenant_id]
+    );
+
+    if (result.rows.length === 0 || !result.rows[0].access_token) {
+      return res.status(401).json({ error: 'No LinkedIn connection found for tenant' });
+    }
+
+    const accessToken: string = result.rows[0].access_token;
+
+    const response = await axios.get('https://api.linkedin.com/rest/organizationAcls', {
+      params: {
+        q: 'roleAssignee',
+        role: 'ADMINISTRATOR',
+        state: 'APPROVED',
+        projection:
+          '(elements*(organization~(id,localizedName,vanityName,logoV2(original~:playableStreams))))',
+      },
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'LinkedIn-Version': '202401',
+        'X-Restli-Protocol-Version': '2.0.0',
+      },
+    });
+
+    const elements = response.data?.elements ?? [];
+    const pages = elements.map((el: any) => {
+      const org = el['organization~'] ?? {};
+      return {
+        organizationId: String(org.id ?? ''),
+        name: org.localizedName ?? '',
+        vanityName: org.vanityName ?? '',
+      };
+    });
+
+    return res.json(pages);
+  } catch (err: any) {
+    const status = err?.response?.status;
+    const linkedinError =
+      err?.response?.data?.message ||
+      err?.response?.data?.error_description ||
+      err?.message ||
+      'Unknown error';
+
+    console.error('Error fetching LinkedIn Pages:', {
+      status,
+      data: err?.response?.data,
+      message: err?.message,
+    });
+
+    if (status === 401) {
+      return res.status(401).json({
+        error: `LinkedIn access token invalid or expired: ${linkedinError}`,
+      });
+    }
+
+    if (status === 403) {
+      // TODO: Add "r_organization_social" (or "rw_organization_admin") scope
+      // to the LinkedIn OAuth flow via LinkedIn Developer Portal Products tab.
+      console.error(
+        '[LinkedIn Pages] 403 - missing scope. Need r_organization_social ' +
+          '(or rw_organization_admin). Current scopes: openid, profile, email, w_member_social.'
+      );
+      return res.status(403).json({
+        error:
+          'LinkedIn organization scope not authorized. Need r_organization_social scope from LinkedIn Developer Portal Products tab.',
+      });
+    }
+
+    return res.status(500).json({ error: `Failed to fetch LinkedIn Pages: ${linkedinError}` });
+  }
+});
+
 export default router;
