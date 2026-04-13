@@ -180,6 +180,19 @@ async function runMultiTenantMigrations(): Promise<void> {
 
   console.log('  ✅ tenant_connections table created');
 
+  // 7a. Add selected GA4 property columns to tenant_connections if not exists
+  await pool.query(`
+    ALTER TABLE tenant_connections
+    ADD COLUMN IF NOT EXISTS selected_property_id VARCHAR(255)
+  `);
+
+  await pool.query(`
+    ALTER TABLE tenant_connections
+    ADD COLUMN IF NOT EXISTS selected_property_name VARCHAR(500)
+  `);
+
+  console.log('  ✅ selected_property_id / selected_property_name columns ensured on tenant_connections');
+
   // 8. Create users table
   await pool.query(`
     CREATE TABLE IF NOT EXISTS users (

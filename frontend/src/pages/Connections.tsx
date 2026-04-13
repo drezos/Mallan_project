@@ -8,6 +8,17 @@ interface ConnectionStatus {
   linkedin: boolean;
 }
 
+interface Ga4Property {
+  propertyId: string;
+  displayName: string;
+  accountName: string;
+}
+
+interface SelectedGa4Property {
+  propertyId: string | null;
+  displayName: string | null;
+}
+
 const GoogleIcon = () => (
   <svg width="32" height="32" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
     <path d="M35.44 24.28c0-.9-.08-1.76-.22-2.6H24v4.92h6.4a5.46 5.46 0 0 1-2.37 3.58v2.97h3.84c2.25-2.07 3.57-5.12 3.57-8.87z" fill="#4285F4" />
@@ -70,6 +81,15 @@ export function Connections() {
   const [disconnecting, setDisconnecting] = useState<string | null>(null);
   const [confirmDisconnect, setConfirmDisconnect] = useState<string | null>(null);
   const prevStatusRef = useRef<ConnectionStatus | null>(null);
+
+  // GA4 property picker state
+  const [selectedGa4, setSelectedGa4] = useState<SelectedGa4Property | null>(null);
+  const [ga4PickerOpen, setGa4PickerOpen] = useState(false);
+  const [ga4Properties, setGa4Properties] = useState<Ga4Property[] | null>(null);
+  const [ga4Loading, setGa4Loading] = useState(false);
+  const [ga4Error, setGa4Error] = useState<string | null>(null);
+  const [ga4Choice, setGa4Choice] = useState<string | null>(null);
+  const [ga4Saving, setGa4Saving] = useState(false);
 
   // If redirected back from OAuth with ?connected={platform}, apply it immediately
   const connectedParam = searchParams.get('connected') as keyof ConnectionStatus | null;
@@ -139,6 +159,86 @@ export function Connections() {
     window.addEventListener('focus', fetchStatus);
     return () => window.removeEventListener('focus', fetchStatus);
   }, [fetchStatus]);
+
+  // Fetch currently-selected GA4 property when Google is connected
+  useEffect(() => {
+    if (!tenantId || !status?.google) {
+      setSelectedGa4(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(
+          `${import.meta.env.VITE_API_URL}/api/connections/google/selected-property?tenant_id=${tenantId}`
+        );
+        if (res.ok) {
+          const data: SelectedGa4Property = await res.json();
+          if (!cancelled) setSelectedGa4(data);
+        }
+      } catch {
+        // silently fail
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [tenantId, status?.google]);
+
+  const openGa4Picker = useCallback(async () => {
+    if (!tenantId) return;
+    setGa4PickerOpen(true);
+    setGa4Loading(true);
+    setGa4Error(null);
+    setGa4Properties(null);
+    setGa4Choice(selectedGa4?.propertyId ?? null);
+    try {
+      const res = await fetch(
+        `${import.meta.env.VITE_API_URL}/api/connections/google/ga4-properties?tenant_id=${tenantId}`
+      );
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setGa4Error(body?.error || 'Failed to load GA4 properties');
+      } else {
+        const data: Ga4Property[] = await res.json();
+        setGa4Properties(data);
+      }
+    } catch (e: any) {
+      setGa4Error(e?.message || 'Failed to load GA4 properties');
+    } finally {
+      setGa4Loading(false);
+    }
+  }, [tenantId, selectedGa4?.propertyId]);
+
+  const saveGa4Property = useCallback(async () => {
+    if (!tenantId || !ga4Choice || !ga4Properties) return;
+    const chosen = ga4Properties.find((p) => p.propertyId === ga4Choice);
+    if (!chosen) return;
+    setGa4Saving(true);
+    try {
+      const res = await fetch(
+        `${import.meta.env.VITE_API_URL}/api/connections/google/ga4-property`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            tenant_id: tenantId,
+            propertyId: chosen.propertyId,
+            displayName: chosen.displayName,
+          }),
+        }
+      );
+      if (res.ok) {
+        setSelectedGa4({ propertyId: chosen.propertyId, displayName: chosen.displayName });
+        setGa4PickerOpen(false);
+      } else {
+        const body = await res.json().catch(() => ({}));
+        setGa4Error(body?.error || 'Failed to save property');
+      }
+    } catch (e: any) {
+      setGa4Error(e?.message || 'Failed to save property');
+    } finally {
+      setGa4Saving(false);
+    }
+  }, [tenantId, ga4Choice, ga4Properties]);
 
   const handleConnect = (platform: string) => {
     if (!tenantId) return;
@@ -581,11 +681,15 @@ export function Connections() {
           <div
             key={platform.key}
             style={{
+              borderBottom: index < connectedPlatforms.length - 1 ? '1px solid #E8DCC8' : 'none',
+            }}
+          >
+          <div
+            style={{
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
               padding: '20px 24px',
-              borderBottom: index < connectedPlatforms.length - 1 ? '1px solid #E8DCC8' : 'none',
               transition: 'background 0.15s',
             }}
             onMouseEnter={(e) => {
@@ -685,6 +789,78 @@ export function Connections() {
                 {disconnecting === platform.key ? 'Disconnecting…' : 'Disconnect'}
               </button>
             </div>
+          </div>
+          {platform.key === 'google' && (
+            <div
+              style={{
+                padding: '0 24px 16px 72px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '12px',
+                flexWrap: 'wrap',
+              }}
+            >
+              {selectedGa4?.propertyId ? (
+                <>
+                  <span
+                    style={{
+                      fontFamily: 'system-ui, sans-serif',
+                      fontSize: '0.85rem',
+                      color: '#4A2C2A',
+                    }}
+                  >
+                    GA4 Property:{' '}
+                    <span style={{ fontWeight: 600 }}>{selectedGa4.displayName}</span>
+                  </span>
+                  <button
+                    onClick={openGa4Picker}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      fontFamily: 'system-ui, sans-serif',
+                      fontSize: '0.8rem',
+                      color: '#8B4513',
+                      padding: '4px 8px',
+                      borderRadius: '4px',
+                      textDecoration: 'underline',
+                    }}
+                  >
+                    Change
+                  </button>
+                </>
+              ) : (
+                <>
+                  <span
+                    style={{
+                      fontFamily: 'system-ui, sans-serif',
+                      fontSize: '0.85rem',
+                      color: '#B8860B',
+                    }}
+                  >
+                    ⚠ No GA4 property selected
+                  </span>
+                  <button
+                    onClick={openGa4Picker}
+                    style={{
+                      background: '#FF8C00',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: '6px',
+                      padding: '6px 14px',
+                      fontSize: '0.8rem',
+                      fontFamily: "'Comfortaa', sans-serif",
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Select property
+                  </button>
+                </>
+              )}
+            </div>
+          )}
           </div>
         ))}
       </div>
@@ -788,6 +964,218 @@ export function Connections() {
         </div>
       )}
       {modalContent}
+      {ga4PickerOpen && (
+        <div
+          onClick={() => { if (!ga4Saving) setGa4PickerOpen(false); }}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0,0,0,0.4)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: '#fff',
+              borderRadius: '16px',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+              maxWidth: '520px',
+              width: '90%',
+              padding: '28px',
+              maxHeight: '80vh',
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+          >
+            <h2
+              style={{
+                fontFamily: "'Comfortaa', sans-serif",
+                fontWeight: 600,
+                color: '#4A2C2A',
+                fontSize: '1.2rem',
+                margin: '0 0 4px 0',
+              }}
+            >
+              Select a GA4 property
+            </h2>
+            <p
+              style={{
+                fontFamily: 'system-ui, sans-serif',
+                color: '#6B5B5B',
+                fontSize: '0.9rem',
+                margin: '0 0 20px 0',
+              }}
+            >
+              Choose which Google Analytics property to use for your dashboard.
+            </p>
+
+            <div style={{ flex: 1, overflowY: 'auto', minHeight: '160px' }}>
+              {ga4Loading && (
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '40px 0',
+                    gap: '12px',
+                  }}
+                >
+                  <div
+                    style={{
+                      width: '24px',
+                      height: '24px',
+                      border: '3px solid #E8DCC8',
+                      borderTopColor: '#8B4513',
+                      borderRadius: '50%',
+                      animation: 'ga4spin 0.8s linear infinite',
+                    }}
+                  />
+                  <span style={{ color: '#6B5B5B', fontFamily: 'system-ui, sans-serif', fontSize: '0.9rem' }}>
+                    Loading properties…
+                  </span>
+                  <style>{`@keyframes ga4spin { to { transform: rotate(360deg); } }`}</style>
+                </div>
+              )}
+
+              {!ga4Loading && ga4Error && (
+                <div
+                  style={{
+                    padding: '16px',
+                    background: '#FDF2F2',
+                    border: '1px solid #F5C6C6',
+                    borderRadius: '8px',
+                    color: '#C0392B',
+                    fontFamily: 'system-ui, sans-serif',
+                    fontSize: '0.875rem',
+                  }}
+                >
+                  {ga4Error}
+                </div>
+              )}
+
+              {!ga4Loading && !ga4Error && ga4Properties && ga4Properties.length === 0 && (
+                <p
+                  style={{
+                    color: '#6B5B5B',
+                    fontFamily: 'system-ui, sans-serif',
+                    fontSize: '0.9rem',
+                    textAlign: 'center',
+                    padding: '24px 0',
+                  }}
+                >
+                  No GA4 properties found on your Google account.
+                </p>
+              )}
+
+              {!ga4Loading && !ga4Error && ga4Properties && ga4Properties.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {ga4Properties.map((p) => {
+                    const isChecked = ga4Choice === p.propertyId;
+                    return (
+                      <label
+                        key={p.propertyId}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'flex-start',
+                          gap: '12px',
+                          padding: '12px 14px',
+                          border: `1px solid ${isChecked ? '#8B4513' : '#E8DCC8'}`,
+                          borderRadius: '10px',
+                          background: isChecked ? '#FAF5EE' : '#fff',
+                          cursor: 'pointer',
+                          transition: 'border-color 0.15s, background 0.15s',
+                        }}
+                      >
+                        <input
+                          type="radio"
+                          name="ga4-property"
+                          value={p.propertyId}
+                          checked={isChecked}
+                          onChange={() => setGa4Choice(p.propertyId)}
+                          style={{ marginTop: '3px', accentColor: '#8B4513' }}
+                        />
+                        <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                          <span
+                            style={{
+                              fontFamily: 'system-ui, sans-serif',
+                              fontWeight: 600,
+                              color: '#4A2C2A',
+                              fontSize: '0.9rem',
+                            }}
+                          >
+                            {p.displayName}
+                          </span>
+                          <span
+                            style={{
+                              fontFamily: 'system-ui, sans-serif',
+                              color: '#6B5B5B',
+                              fontSize: '0.8rem',
+                            }}
+                          >
+                            {p.accountName}
+                          </span>
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'flex-end',
+                gap: '12px',
+                marginTop: '20px',
+              }}
+            >
+              <button
+                onClick={() => setGa4PickerOpen(false)}
+                disabled={ga4Saving}
+                style={{
+                  background: 'none',
+                  border: '1px solid #D2B48C',
+                  borderRadius: '8px',
+                  padding: '8px 20px',
+                  fontFamily: 'system-ui, sans-serif',
+                  color: '#4A2C2A',
+                  fontSize: '0.875rem',
+                  cursor: ga4Saving ? 'default' : 'pointer',
+                  opacity: ga4Saving ? 0.6 : 1,
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={saveGa4Property}
+                disabled={!ga4Choice || ga4Saving || ga4Loading}
+                style={{
+                  background: '#FF8C00',
+                  border: 'none',
+                  borderRadius: '8px',
+                  padding: '8px 20px',
+                  fontFamily: "'Comfortaa', sans-serif",
+                  fontWeight: 600,
+                  color: '#fff',
+                  fontSize: '0.875rem',
+                  cursor: (!ga4Choice || ga4Saving || ga4Loading) ? 'default' : 'pointer',
+                  opacity: (!ga4Choice || ga4Saving || ga4Loading) ? 0.6 : 1,
+                }}
+              >
+                {ga4Saving ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

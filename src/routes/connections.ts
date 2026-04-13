@@ -151,4 +151,70 @@ router.get('/google/ga4-properties', async (req: Request, res: Response) => {
   }
 });
 
+// GET /api/connections/google/selected-property?tenant_id={uuid}
+// Returns the GA4 property the tenant has picked for their Google connection (if any).
+router.get('/google/selected-property', async (req: Request, res: Response) => {
+  const { tenant_id } = req.query;
+
+  if (!tenant_id || typeof tenant_id !== 'string') {
+    return res.status(400).json({ error: 'tenant_id is required' });
+  }
+
+  try {
+    const result = await pool.query(
+      `SELECT selected_property_id, selected_property_name
+       FROM tenant_connections
+       WHERE tenant_id = $1 AND platform = 'google'`,
+      [tenant_id]
+    );
+
+    if (result.rows.length === 0 || !result.rows[0].selected_property_id) {
+      return res.json({ propertyId: null, displayName: null });
+    }
+
+    return res.json({
+      propertyId: result.rows[0].selected_property_id,
+      displayName: result.rows[0].selected_property_name,
+    });
+  } catch (err) {
+    console.error('Error fetching selected GA4 property:', err);
+    return res.status(500).json({ error: 'Failed to fetch selected property' });
+  }
+});
+
+// POST /api/connections/google/ga4-property
+// Body: { tenant_id, propertyId, displayName }
+// Stores the GA4 property the tenant has picked for their Google connection.
+router.post('/google/ga4-property', async (req: Request, res: Response) => {
+  const { tenant_id, propertyId, displayName } = req.body ?? {};
+
+  if (!tenant_id || typeof tenant_id !== 'string') {
+    return res.status(400).json({ error: 'tenant_id is required' });
+  }
+  if (!propertyId || typeof propertyId !== 'string') {
+    return res.status(400).json({ error: 'propertyId is required' });
+  }
+  if (typeof displayName !== 'string') {
+    return res.status(400).json({ error: 'displayName is required' });
+  }
+
+  try {
+    const result = await pool.query(
+      `UPDATE tenant_connections
+       SET selected_property_id = $1, selected_property_name = $2
+       WHERE tenant_id = $3 AND platform = 'google'`,
+      [propertyId, displayName, tenant_id]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'No Google connection found for tenant' });
+    }
+
+    return res.json({ success: true });
+  } catch (err) {
+    console.error('Error saving selected GA4 property:', err);
+    return res.status(500).json({ error: 'Failed to save selected property' });
+  }
+});
+
 export default router;
