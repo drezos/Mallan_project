@@ -295,4 +295,66 @@ router.post('/google/ga4-property', async (req: Request, res: Response) => {
   }
 });
 
+// GET /api/connections/google/selected-search-console-site?tenant_id={uuid}
+// Returns the Search Console site the tenant has picked for their Google connection (if any).
+router.get('/google/selected-search-console-site', async (req: Request, res: Response) => {
+  const { tenant_id } = req.query;
+
+  if (!tenant_id || typeof tenant_id !== 'string') {
+    return res.status(400).json({ error: 'tenant_id is required' });
+  }
+
+  try {
+    const result = await pool.query(
+      `SELECT selected_search_console_site_url
+       FROM tenant_connections
+       WHERE tenant_id = $1 AND platform = 'google'`,
+      [tenant_id]
+    );
+
+    if (result.rows.length === 0 || !result.rows[0].selected_search_console_site_url) {
+      return res.json({ siteUrl: null });
+    }
+
+    return res.json({
+      siteUrl: result.rows[0].selected_search_console_site_url,
+    });
+  } catch (err) {
+    console.error('Error fetching selected Search Console site:', err);
+    return res.status(500).json({ error: 'Failed to fetch selected Search Console site' });
+  }
+});
+
+// POST /api/connections/google/search-console-site
+// Body: { tenant_id, siteUrl }
+// Stores the Search Console site the tenant has picked for their Google connection.
+router.post('/google/search-console-site', async (req: Request, res: Response) => {
+  const { tenant_id, siteUrl } = req.body ?? {};
+
+  if (!tenant_id || typeof tenant_id !== 'string') {
+    return res.status(400).json({ error: 'tenant_id is required' });
+  }
+  if (!siteUrl || typeof siteUrl !== 'string') {
+    return res.status(400).json({ error: 'siteUrl is required' });
+  }
+
+  try {
+    const result = await pool.query(
+      `UPDATE tenant_connections
+       SET selected_search_console_site_url = $1
+       WHERE tenant_id = $2 AND platform = 'google'`,
+      [siteUrl, tenant_id]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'No Google connection found for tenant' });
+    }
+
+    return res.json({ success: true });
+  } catch (err) {
+    console.error('Error saving selected Search Console site:', err);
+    return res.status(500).json({ error: 'Failed to save selected Search Console site' });
+  }
+});
+
 export default router;

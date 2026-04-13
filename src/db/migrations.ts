@@ -193,6 +193,14 @@ async function runMultiTenantMigrations(): Promise<void> {
 
   console.log('  ✅ selected_property_id / selected_property_name columns ensured on tenant_connections');
 
+  // 7b. Add selected Search Console site column to tenant_connections if not exists
+  await pool.query(`
+    ALTER TABLE tenant_connections
+    ADD COLUMN IF NOT EXISTS selected_search_console_site_url VARCHAR(500)
+  `);
+
+  console.log('  ✅ selected_search_console_site_url column ensured on tenant_connections');
+
   // 8. Create users table
   await pool.query(`
     CREATE TABLE IF NOT EXISTS users (
