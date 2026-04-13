@@ -6,6 +6,7 @@ interface ConnectionStatus {
   google: boolean;
   meta: boolean;
   linkedin: boolean;
+  'linkedin-organic': boolean;
 }
 
 interface Ga4Property {
@@ -86,7 +87,13 @@ const platforms = [
   {
     key: 'linkedin',
     title: 'LinkedIn',
-    description: 'LinkedIn Ads, LinkedIn Page',
+    description: 'LinkedIn Ads',
+    Icon: LinkedInIcon,
+  },
+  {
+    key: 'linkedin-organic',
+    title: 'LinkedIn Organic',
+    description: 'Company Page insights (Pages, posts, followers)',
     Icon: LinkedInIcon,
   },
 ];
@@ -168,7 +175,13 @@ export function Connections() {
       if (res.ok) {
         const data: ConnectionStatus = await res.json();
         // Merge the ?connected= param so the just-connected platform shows immediately
-        if (connectedParam && (connectedParam === 'google' || connectedParam === 'meta' || connectedParam === 'linkedin')) {
+        if (
+          connectedParam &&
+          (connectedParam === 'google' ||
+            connectedParam === 'meta' ||
+            connectedParam === 'linkedin' ||
+            connectedParam === 'linkedin-organic')
+        ) {
           data[connectedParam] = true;
         }
         setStatus(data);
@@ -476,7 +489,8 @@ export function Connections() {
       if (
         (!prev.google && status.google) ||
         (!prev.meta && status.meta) ||
-        (!prev.linkedin && status.linkedin)
+        (!prev.linkedin && status.linkedin) ||
+        (!prev['linkedin-organic'] && status['linkedin-organic'])
       ) {
         setShowModal(false);
       }
@@ -486,7 +500,12 @@ export function Connections() {
 
   const connectedPlatforms = platforms.filter((p) => status?.[p.key as keyof ConnectionStatus]);
   const anyConnected = connectedPlatforms.length > 0;
-  const allConnected = status !== null && status.google && status.meta && status.linkedin;
+  const allConnected =
+    status !== null &&
+    status.google &&
+    status.meta &&
+    status.linkedin &&
+    status['linkedin-organic'];
 
   // Individual platform cards for the modal
   const modalPlatforms: { key: string; label: string; color: string; icon: JSX.Element }[] = [];
@@ -578,6 +597,19 @@ export function Connections() {
         ),
       },
     );
+  }
+
+  if (!status?.['linkedin-organic']) {
+    modalPlatforms.push({
+      key: 'linkedin-organic', label: 'LinkedIn Organic', color: '#0A66C2',
+      icon: (
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <rect x="3" y="9" width="4" height="12" fill="#0A66C2" />
+          <circle cx="5" cy="5" r="2.5" fill="#0A66C2" />
+          <path d="M11 9h3.5v1.6C15 9.6 16.3 9 17.8 9 20.5 9 21 10.8 21 13.5V21h-3.5v-6.5c0-1.6-.5-2.5-1.8-2.5-1.5 0-2.2 1-2.2 2.7V21H11V9z" fill="#0A66C2" />
+        </svg>
+      ),
+    });
   }
 
   const modalContent = showModal ? (
