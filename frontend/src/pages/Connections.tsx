@@ -28,6 +28,19 @@ interface SelectedSearchConsoleSite {
   siteUrl: string | null;
 }
 
+interface FacebookPage {
+  pageId: string;
+  name: string;
+  pageAccessToken: string;
+  instagramAccountId: string | null;
+}
+
+interface SelectedFacebookPage {
+  pageId: string | null;
+  pageName: string | null;
+  instagramAccountId: string | null;
+}
+
 const GoogleIcon = () => (
   <svg width="32" height="32" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
     <path d="M35.44 24.28c0-.9-.08-1.76-.22-2.6H24v4.92h6.4a5.46 5.46 0 0 1-2.37 3.58v2.97h3.84c2.25-2.07 3.57-5.12 3.57-8.87z" fill="#4285F4" />
@@ -108,6 +121,15 @@ export function Connections() {
   const [sitesError, setSitesError] = useState<string | null>(null);
   const [siteChoice, setSiteChoice] = useState<string | null>(null);
   const [siteSaving, setSiteSaving] = useState(false);
+
+  // Facebook Page picker state
+  const [selectedFbPage, setSelectedFbPage] = useState<SelectedFacebookPage | null>(null);
+  const [fbPagePickerOpen, setFbPagePickerOpen] = useState(false);
+  const [fbPages, setFbPages] = useState<FacebookPage[] | null>(null);
+  const [fbPagesLoading, setFbPagesLoading] = useState(false);
+  const [fbPagesError, setFbPagesError] = useState<string | null>(null);
+  const [fbPageChoice, setFbPageChoice] = useState<string | null>(null);
+  const [fbPageSaving, setFbPageSaving] = useState(false);
 
   // If redirected back from OAuth with ?connected={platform}, apply it immediately
   const connectedParam = searchParams.get('connected') as keyof ConnectionStatus | null;
@@ -223,6 +245,92 @@ export function Connections() {
     })();
     return () => { cancelled = true; };
   }, [tenantId, status?.google]);
+
+  // Fetch currently-selected Facebook Page when Meta is connected
+  useEffect(() => {
+    if (!tenantId || !status?.meta) {
+      setSelectedFbPage(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(
+          `${import.meta.env.VITE_API_URL}/api/connections/meta/selected-facebook-page?tenant_id=${tenantId}`
+        );
+        if (res.ok) {
+          const data: SelectedFacebookPage = await res.json();
+          if (!cancelled) setSelectedFbPage(data);
+        }
+      } catch {
+        // silently fail
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [tenantId, status?.meta]);
+
+  const openFbPagePicker = useCallback(async () => {
+    if (!tenantId) return;
+    setFbPagePickerOpen(true);
+    setFbPagesLoading(true);
+    setFbPagesError(null);
+    setFbPages(null);
+    setFbPageChoice(selectedFbPage?.pageId ?? null);
+    try {
+      const res = await fetch(
+        `${import.meta.env.VITE_API_URL}/api/connections/meta/facebook-pages?tenant_id=${tenantId}`
+      );
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setFbPagesError(body?.error || 'Failed to load Facebook Pages');
+      } else {
+        const data: FacebookPage[] = await res.json();
+        setFbPages(data);
+      }
+    } catch (e: any) {
+      setFbPagesError(e?.message || 'Failed to load Facebook Pages');
+    } finally {
+      setFbPagesLoading(false);
+    }
+  }, [tenantId, selectedFbPage?.pageId]);
+
+  const saveFacebookPage = useCallback(async () => {
+    if (!tenantId || !fbPageChoice || !fbPages) return;
+    const chosen = fbPages.find((p) => p.pageId === fbPageChoice);
+    if (!chosen) return;
+    setFbPageSaving(true);
+    try {
+      const res = await fetch(
+        `${import.meta.env.VITE_API_URL}/api/connections/meta/facebook-page`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            tenant_id: tenantId,
+            pageId: chosen.pageId,
+            pageName: chosen.name,
+            pageAccessToken: chosen.pageAccessToken,
+            instagramAccountId: chosen.instagramAccountId,
+          }),
+        }
+      );
+      if (res.ok) {
+        setSelectedFbPage({
+          pageId: chosen.pageId,
+          pageName: chosen.name,
+          instagramAccountId: chosen.instagramAccountId,
+        });
+        setFbPagePickerOpen(false);
+      } else {
+        const body = await res.json().catch(() => ({}));
+        setFbPagesError(body?.error || 'Failed to save Facebook Page');
+      }
+    } catch (e: any) {
+      setFbPagesError(e?.message || 'Failed to save Facebook Page');
+    } finally {
+      setFbPageSaving(false);
+    }
+  }, [tenantId, fbPageChoice, fbPages]);
 
   const openSitePicker = useCallback(async () => {
     if (!tenantId) return;
@@ -958,6 +1066,77 @@ export function Connections() {
               )}
             </div>
           )}
+          {platform.key === 'meta' && (
+            <div
+              style={{
+                padding: '0 24px 16px 72px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '12px',
+                flexWrap: 'wrap',
+              }}
+            >
+              {selectedFbPage?.pageId ? (
+                <>
+                  <span
+                    style={{
+                      fontFamily: 'system-ui, sans-serif',
+                      fontSize: '0.85rem',
+                      color: '#4A2C2A',
+                    }}
+                  >
+                    Facebook Page:{' '}
+                    <span style={{ fontWeight: 600 }}>{selectedFbPage.pageName}</span>
+                  </span>
+                  <button
+                    onClick={openFbPagePicker}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      fontFamily: 'system-ui, sans-serif',
+                      fontSize: '0.8rem',
+                      color: '#8B4513',
+                      padding: '4px 8px',
+                      borderRadius: '4px',
+                      textDecoration: 'underline',
+                    }}
+                  >
+                    Change
+                  </button>
+                </>
+              ) : (
+                <>
+                  <span
+                    style={{
+                      fontFamily: 'system-ui, sans-serif',
+                      fontSize: '0.85rem',
+                      color: '#B8860B',
+                    }}
+                  >
+                    ⚠ No Facebook Page selected
+                  </span>
+                  <button
+                    onClick={openFbPagePicker}
+                    style={{
+                      background: '#FF8C00',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: '6px',
+                      padding: '6px 14px',
+                      fontSize: '0.8rem',
+                      fontFamily: "'Comfortaa', sans-serif",
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Select Page
+                  </button>
+                </>
+              )}
+            </div>
+          )}
           {platform.key === 'google' && (
             <div
               style={{
@@ -1552,6 +1731,229 @@ export function Connections() {
                 }}
               >
                 {siteSaving ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {fbPagePickerOpen && (
+        <div
+          onClick={() => { if (!fbPageSaving) setFbPagePickerOpen(false); }}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0,0,0,0.4)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: '#fff',
+              borderRadius: '16px',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+              maxWidth: '520px',
+              width: '90%',
+              padding: '28px',
+              maxHeight: '80vh',
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+          >
+            <h2
+              style={{
+                fontFamily: "'Comfortaa', sans-serif",
+                fontWeight: 600,
+                color: '#4A2C2A',
+                fontSize: '1.2rem',
+                margin: '0 0 4px 0',
+              }}
+            >
+              Select a Facebook Page
+            </h2>
+            <p
+              style={{
+                fontFamily: 'system-ui, sans-serif',
+                color: '#6B5B5B',
+                fontSize: '0.9rem',
+                margin: '0 0 20px 0',
+              }}
+            >
+              Choose which Facebook Page to use for your dashboard.
+            </p>
+
+            <div style={{ flex: 1, overflowY: 'auto', minHeight: '160px' }}>
+              {fbPagesLoading && (
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '40px 0',
+                    gap: '12px',
+                  }}
+                >
+                  <div
+                    style={{
+                      width: '24px',
+                      height: '24px',
+                      border: '3px solid #E8DCC8',
+                      borderTopColor: '#8B4513',
+                      borderRadius: '50%',
+                      animation: 'fbspin 0.8s linear infinite',
+                    }}
+                  />
+                  <span style={{ color: '#6B5B5B', fontFamily: 'system-ui, sans-serif', fontSize: '0.9rem' }}>
+                    Loading pages…
+                  </span>
+                  <style>{`@keyframes fbspin { to { transform: rotate(360deg); } }`}</style>
+                </div>
+              )}
+
+              {!fbPagesLoading && fbPagesError && (
+                <div
+                  style={{
+                    padding: '16px',
+                    background: '#FDF2F2',
+                    border: '1px solid #F5C6C6',
+                    borderRadius: '8px',
+                    color: '#C0392B',
+                    fontFamily: 'system-ui, sans-serif',
+                    fontSize: '0.875rem',
+                  }}
+                >
+                  {fbPagesError}
+                </div>
+              )}
+
+              {!fbPagesLoading && !fbPagesError && fbPages && fbPages.length === 0 && (
+                <p
+                  style={{
+                    color: '#6B5B5B',
+                    fontFamily: 'system-ui, sans-serif',
+                    fontSize: '0.9rem',
+                    textAlign: 'center',
+                    padding: '24px 0',
+                  }}
+                >
+                  No Facebook Pages found on your Meta account.
+                </p>
+              )}
+
+              {!fbPagesLoading && !fbPagesError && fbPages && fbPages.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {fbPages.map((p) => {
+                    const isChecked = fbPageChoice === p.pageId;
+                    const igLinked = p.instagramAccountId !== null;
+                    return (
+                      <label
+                        key={p.pageId}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'flex-start',
+                          gap: '12px',
+                          padding: '12px 14px',
+                          border: `1px solid ${isChecked ? '#8B4513' : '#E8DCC8'}`,
+                          borderRadius: '10px',
+                          background: isChecked ? '#FAF5EE' : '#fff',
+                          cursor: 'pointer',
+                          transition: 'border-color 0.15s, background 0.15s',
+                        }}
+                      >
+                        <input
+                          type="radio"
+                          name="facebook-page"
+                          value={p.pageId}
+                          checked={isChecked}
+                          onChange={() => setFbPageChoice(p.pageId)}
+                          style={{ marginTop: '3px', accentColor: '#8B4513' }}
+                        />
+                        <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                          <span
+                            style={{
+                              fontFamily: 'system-ui, sans-serif',
+                              fontWeight: 600,
+                              color: '#4A2C2A',
+                              fontSize: '0.9rem',
+                            }}
+                          >
+                            {p.name}
+                          </span>
+                          <span
+                            style={{
+                              fontFamily: 'system-ui, sans-serif',
+                              color: '#6B5B5B',
+                              fontSize: '0.8rem',
+                            }}
+                          >
+                            {p.pageId}
+                          </span>
+                          <span
+                            style={{
+                              fontFamily: 'system-ui, sans-serif',
+                              color: igLinked ? '#228B22' : '#6B5B5B',
+                              fontSize: '0.75rem',
+                              marginTop: '2px',
+                            }}
+                          >
+                            Instagram linked: {igLinked ? 'yes' : 'no'}
+                          </span>
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'flex-end',
+                gap: '12px',
+                marginTop: '20px',
+              }}
+            >
+              <button
+                onClick={() => setFbPagePickerOpen(false)}
+                disabled={fbPageSaving}
+                style={{
+                  background: 'none',
+                  border: '1px solid #D2B48C',
+                  borderRadius: '8px',
+                  padding: '8px 20px',
+                  fontFamily: 'system-ui, sans-serif',
+                  color: '#4A2C2A',
+                  fontSize: '0.875rem',
+                  cursor: fbPageSaving ? 'default' : 'pointer',
+                  opacity: fbPageSaving ? 0.6 : 1,
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={saveFacebookPage}
+                disabled={!fbPageChoice || fbPageSaving || fbPagesLoading}
+                style={{
+                  background: '#FF8C00',
+                  border: 'none',
+                  borderRadius: '8px',
+                  padding: '8px 20px',
+                  fontFamily: "'Comfortaa', sans-serif",
+                  fontWeight: 600,
+                  color: '#fff',
+                  fontSize: '0.875rem',
+                  cursor: (!fbPageChoice || fbPageSaving || fbPagesLoading) ? 'default' : 'pointer',
+                  opacity: (!fbPageChoice || fbPageSaving || fbPagesLoading) ? 0.6 : 1,
+                }}
+              >
+                {fbPageSaving ? 'Saving…' : 'Save'}
               </button>
             </div>
           </div>

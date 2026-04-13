@@ -201,6 +201,31 @@ async function runMultiTenantMigrations(): Promise<void> {
 
   console.log('  ✅ selected_search_console_site_url column ensured on tenant_connections');
 
+  // 7c. Add selected Facebook Page columns to tenant_connections if not exists.
+  // page_access_token is a Page-scoped token required for Insights API calls and
+  // is stored alongside the user-scoped access_token column.
+  await pool.query(`
+    ALTER TABLE tenant_connections
+    ADD COLUMN IF NOT EXISTS selected_facebook_page_id VARCHAR(255)
+  `);
+
+  await pool.query(`
+    ALTER TABLE tenant_connections
+    ADD COLUMN IF NOT EXISTS selected_facebook_page_name VARCHAR(500)
+  `);
+
+  await pool.query(`
+    ALTER TABLE tenant_connections
+    ADD COLUMN IF NOT EXISTS selected_facebook_page_access_token TEXT
+  `);
+
+  await pool.query(`
+    ALTER TABLE tenant_connections
+    ADD COLUMN IF NOT EXISTS selected_facebook_instagram_account_id VARCHAR(255)
+  `);
+
+  console.log('  ✅ selected_facebook_page_* columns ensured on tenant_connections');
+
   // 8. Create users table
   await pool.query(`
     CREATE TABLE IF NOT EXISTS users (
