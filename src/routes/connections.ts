@@ -27,6 +27,7 @@ router.get('/', async (req: Request, res: Response) => {
       google: connectedPlatforms.includes('google'),
       meta: connectedPlatforms.includes('meta'),
       linkedin: connectedPlatforms.includes('linkedin'),
+      'linkedin-organic': connectedPlatforms.includes('linkedin-organic'),
     });
   } catch (err) {
     console.error('Error fetching connections:', err);
