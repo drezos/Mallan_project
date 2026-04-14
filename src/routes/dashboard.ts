@@ -1,8 +1,11 @@
 import { Router, Request, Response } from 'express';
 import { pool } from '../db/cache';
-import { getGoogleAdsMetrics } from '../services/googleAdsClient';
 import { getMetaAdsMetrics } from '../services/metaAdsClient';
 import { getLinkedInAdsMetrics } from '../services/linkedinAdsClient';
+import {
+  getGoogleAdsPillar,
+  GoogleAdsPillar,
+} from '../services/googleAdsPillar';
 import { getWebsitePillar, WebsitePillar } from '../services/websitePillar';
 import { getBrandPillar, BrandPillar } from '../services/brandPillar';
 import { getSocialPillar, SocialPillar } from '../services/facebookSocialPillar';
@@ -12,7 +15,17 @@ const router = Router();
 const CACHE_KEY = 'tenant_dashboard';
 const CACHE_DURATION_MS = 24 * 60 * 60 * 1000; // 24 hours
 
-const DEFAULT_ADS = { spend: 0, cpa: 0, roas: 0, conversions: 0, ctr: 0, clicks: 0, impressions: 0, google: { spend: 0, cpa: 0, roas: 0, conversions: 0, ctr: 0, clicks: 0, impressions: 0 }, meta: { spend: 0, cpa: 0, roas: 0, conversions: 0, ctr: 0, clicks: 0, impressions: 0 }, linkedin: { spend: 0, cpa: 0, roas: 0, conversions: 0, ctr: 0, clicks: 0, impressions: 0 } };
+const DEFAULT_GOOGLE_ADS: GoogleAdsPillar = {
+  connected: false,
+  spend: 0,
+  cpa: 0,
+  roas: 0,
+  conversions: 0,
+  ctr: 0,
+  clicks: 0,
+  impressions: 0,
+};
+const DEFAULT_ADS = { spend: 0, cpa: 0, roas: 0, conversions: 0, ctr: 0, clicks: 0, impressions: 0, meta: { spend: 0, cpa: 0, roas: 0, conversions: 0, ctr: 0, clicks: 0, impressions: 0 }, linkedin: { spend: 0, cpa: 0, roas: 0, conversions: 0, ctr: 0, clicks: 0, impressions: 0 } };
 const DEFAULT_WEBSITE: WebsitePillar = { connected: false };
 const DEFAULT_BRAND: BrandPillar = { connected: false };
 const DEFAULT_SOCIAL_PILLAR: SocialPillar = { connected: false };
@@ -21,7 +34,7 @@ async function fetchFreshDashboardData(tenantId: string) {
   // Fetch all sources in parallel — if one fails, others still return data
   const [websiteResult, adsResult, brandResult, metaAdsResult, socialResult, linkedinAdsResult] = await Promise.allSettled([
     getWebsitePillar(tenantId),
-    getGoogleAdsMetrics(tenantId),
+    getGoogleAdsPillar(tenantId),
     getBrandPillar(tenantId),
     getMetaAdsMetrics(tenantId),
     getSocialPillar(tenantId),
@@ -35,9 +48,9 @@ async function fetchFreshDashboardData(tenantId: string) {
     console.error('[dashboard] GA4 error for tenant', tenantId, ':', websiteResult.reason);
   }
 
-  const googleAds = adsResult.status === 'fulfilled'
+  const googleAds: GoogleAdsPillar = adsResult.status === 'fulfilled'
     ? adsResult.value
-    : (console.error('[dashboard] Google Ads error for tenant', tenantId, ':', (adsResult as PromiseRejectedResult).reason), DEFAULT_ADS.google);
+    : (console.error('[dashboard] Google Ads error for tenant', tenantId, ':', (adsResult as PromiseRejectedResult).reason), DEFAULT_GOOGLE_ADS);
 
   const metaAds = metaAdsResult.status === 'fulfilled'
     ? metaAdsResult.value
@@ -47,15 +60,33 @@ async function fetchFreshDashboardData(tenantId: string) {
     ? linkedinAdsResult.value
     : (console.error('[dashboard] LinkedIn Ads error for tenant', tenantId, ':', (linkedinAdsResult as PromiseRejectedResult).reason), DEFAULT_ADS.linkedin);
 
-  const combinedSpend = googleAds.spend + metaAds.spend + linkedinAds.spend;
-  const combinedConversions = googleAds.conversions + metaAds.conversions + linkedinAds.conversions;
-  const combinedClicks = googleAds.clicks + metaAds.clicks + linkedinAds.clicks;
-  const combinedImpressions = googleAds.impressions + metaAds.impressions + linkedinAds.impressions;
-  const combinedCpa = combinedConversions > 0 ? combinedSpend / combinedConversions : 0;
-  const combinedRoas = combinedSpend > 0
-    ? (googleAds.roas * googleAds.spend + metaAds.roas * metaAds.spend + linkedinAds.roas * linkedinAds.spend) / combinedSpend
+  // Aggregate top-level totals across the platforms that are actually connected.
+  // For Google (pillar shape) we use the `current` numbers when connected.
+  const googleConnected = googleAds.connected === true;
+  const gSpend = googleConnected ? googleAds.spend.current : 0;
+  const gConversions = googleConnected ? googleAds.conversions.current : 0;
+  const gConversionsValue = googleConnected
+    ? googleAds.roas.current * googleAds.spend.current
     : 0;
-  const combinedCtr = combinedImpressions > 0 ? (combinedClicks / combinedImpressions) * 100 : 0;
+  const gClicks = googleConnected ? googleAds.clicks.current : 0;
+  const gImpressions = googleConnected ? googleAds.impressions.current : 0;
+
+  const combinedSpend = gSpend + metaAds.spend + linkedinAds.spend;
+  const combinedConversions =
+    gConversions + metaAds.conversions + linkedinAds.conversions;
+  const combinedClicks = gClicks + metaAds.clicks + linkedinAds.clicks;
+  const combinedImpressions =
+    gImpressions + metaAds.impressions + linkedinAds.impressions;
+  const combinedConversionsValue =
+    gConversionsValue +
+    metaAds.roas * metaAds.spend +
+    linkedinAds.roas * linkedinAds.spend;
+  const combinedCpa =
+    combinedConversions > 0 ? combinedSpend / combinedConversions : 0;
+  const combinedRoas =
+    combinedSpend > 0 ? combinedConversionsValue / combinedSpend : 0;
+  const combinedCtr =
+    combinedImpressions > 0 ? (combinedClicks / combinedImpressions) * 100 : 0;
 
   const ads = {
     spend: combinedSpend,
@@ -169,13 +200,14 @@ router.get('/refresh', async (req: Request, res: Response) => {
   try {
     await pool.query(
       `DELETE FROM tenant_cache
-       WHERE tenant_id = $1 AND cache_key IN ($2, $3, $4, $5)`,
+       WHERE tenant_id = $1 AND cache_key IN ($2, $3, $4, $5, $6)`,
       [
         tenantId,
         CACHE_KEY,
         `${tenantId}:dashboard:website`,
         `${tenantId}:dashboard:brand`,
         `${tenantId}:dashboard:social`,
+        `${tenantId}:dashboard:ads:google`,
       ]
     );
     console.log(`[dashboard] Cleared cache for tenant ${tenantId}`);

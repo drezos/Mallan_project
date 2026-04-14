@@ -207,9 +207,36 @@ export type BrandPillar =
       }>;
     };
 
+export interface GoogleAdsMetric {
+  current: number;
+  previous: number;
+  change: number;
+}
+
+export interface GoogleAdsPillarDisconnected extends AdsPlatformMetrics {
+  connected: false;
+}
+
+export interface GoogleAdsPillarConnected {
+  connected: true;
+  accountName: string;
+  currencyCode: string;
+  spend: GoogleAdsMetric;
+  conversions: GoogleAdsMetric;
+  cpa: GoogleAdsMetric;
+  roas: GoogleAdsMetric;
+  ctr: GoogleAdsMetric;
+  clicks: GoogleAdsMetric;
+  impressions: GoogleAdsMetric;
+}
+
+export type GoogleAdsPillar =
+  | GoogleAdsPillarDisconnected
+  | GoogleAdsPillarConnected;
+
 export interface AnalyticsDashboardResponse {
   ads: AdsPlatformMetrics & {
-    google: AdsPlatformMetrics;
+    google: GoogleAdsPillar;
     meta: AdsPlatformMetrics;
     linkedin: AdsPlatformMetrics;
   };
