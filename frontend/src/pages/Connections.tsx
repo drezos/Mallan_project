@@ -42,6 +42,19 @@ interface SelectedFacebookPage {
   instagramAccountId: string | null;
 }
 
+interface GoogleAdsAccount {
+  customerId: string;
+  descriptiveName: string;
+  currencyCode: string;
+  timeZone: string;
+}
+
+interface SelectedGoogleAdsAccount {
+  customerId: string | null;
+  descriptiveName: string | null;
+  currencyCode: string | null;
+}
+
 const GoogleIcon = () => (
   <svg width="32" height="32" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
     <path d="M35.44 24.28c0-.9-.08-1.76-.22-2.6H24v4.92h6.4a5.46 5.46 0 0 1-2.37 3.58v2.97h3.84c2.25-2.07 3.57-5.12 3.57-8.87z" fill="#4285F4" />
@@ -137,6 +150,15 @@ export function Connections() {
   const [fbPagesError, setFbPagesError] = useState<string | null>(null);
   const [fbPageChoice, setFbPageChoice] = useState<string | null>(null);
   const [fbPageSaving, setFbPageSaving] = useState(false);
+
+  // Google Ads account picker state
+  const [selectedAdsAccount, setSelectedAdsAccount] = useState<SelectedGoogleAdsAccount | null>(null);
+  const [adsPickerOpen, setAdsPickerOpen] = useState(false);
+  const [adsAccounts, setAdsAccounts] = useState<GoogleAdsAccount[] | null>(null);
+  const [adsLoading, setAdsLoading] = useState(false);
+  const [adsError, setAdsError] = useState<string | null>(null);
+  const [adsChoice, setAdsChoice] = useState<string | null>(null);
+  const [adsSaving, setAdsSaving] = useState(false);
 
   // If redirected back from OAuth with ?connected={platform}, apply it immediately
   const connectedParam = searchParams.get('connected') as keyof ConnectionStatus | null;
@@ -281,6 +303,29 @@ export function Connections() {
     })();
     return () => { cancelled = true; };
   }, [tenantId, status?.meta]);
+
+  // Fetch currently-selected Google Ads account when Google is connected
+  useEffect(() => {
+    if (!tenantId || !status?.google) {
+      setSelectedAdsAccount(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(
+          `${import.meta.env.VITE_API_URL}/api/connections/google/selected-ads-account?tenant_id=${tenantId}`
+        );
+        if (res.ok) {
+          const data: SelectedGoogleAdsAccount = await res.json();
+          if (!cancelled) setSelectedAdsAccount(data);
+        }
+      } catch {
+        // silently fail
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [tenantId, status?.google]);
 
   const openFbPagePicker = useCallback(async () => {
     if (!tenantId) return;
@@ -457,6 +502,68 @@ export function Connections() {
       setGa4Saving(false);
     }
   }, [tenantId, ga4Choice, ga4Properties]);
+
+  const openAdsPicker = useCallback(async () => {
+    if (!tenantId) return;
+    setAdsPickerOpen(true);
+    setAdsLoading(true);
+    setAdsError(null);
+    setAdsAccounts(null);
+    setAdsChoice(selectedAdsAccount?.customerId ?? null);
+    try {
+      const res = await fetch(
+        `${import.meta.env.VITE_API_URL}/api/connections/google/ads-accounts?tenant_id=${tenantId}`
+      );
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setAdsError(body?.error || 'Failed to load Google Ads accounts');
+      } else {
+        const data: GoogleAdsAccount[] = await res.json();
+        setAdsAccounts(data);
+      }
+    } catch (e: any) {
+      setAdsError(e?.message || 'Failed to load Google Ads accounts');
+    } finally {
+      setAdsLoading(false);
+    }
+  }, [tenantId, selectedAdsAccount?.customerId]);
+
+  const saveAdsAccount = useCallback(async () => {
+    if (!tenantId || !adsChoice || !adsAccounts) return;
+    const chosen = adsAccounts.find((a) => a.customerId === adsChoice);
+    if (!chosen) return;
+    setAdsSaving(true);
+    try {
+      const res = await fetch(
+        `${import.meta.env.VITE_API_URL}/api/connections/google/ads-account`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            tenant_id: tenantId,
+            customerId: chosen.customerId,
+            descriptiveName: chosen.descriptiveName,
+            currencyCode: chosen.currencyCode,
+          }),
+        }
+      );
+      if (res.ok) {
+        setSelectedAdsAccount({
+          customerId: chosen.customerId,
+          descriptiveName: chosen.descriptiveName,
+          currencyCode: chosen.currencyCode,
+        });
+        setAdsPickerOpen(false);
+      } else {
+        const body = await res.json().catch(() => ({}));
+        setAdsError(body?.error || 'Failed to save Google Ads account');
+      }
+    } catch (e: any) {
+      setAdsError(e?.message || 'Failed to save Google Ads account');
+    } finally {
+      setAdsSaving(false);
+    }
+  }, [tenantId, adsChoice, adsAccounts]);
 
   const handleConnect = (platform: string) => {
     if (!tenantId) return;
@@ -1240,6 +1347,77 @@ export function Connections() {
               )}
             </div>
           )}
+          {platform.key === 'google' && (
+            <div
+              style={{
+                padding: '0 24px 16px 72px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '12px',
+                flexWrap: 'wrap',
+              }}
+            >
+              {selectedAdsAccount?.customerId ? (
+                <>
+                  <span
+                    style={{
+                      fontFamily: 'system-ui, sans-serif',
+                      fontSize: '0.85rem',
+                      color: '#4A2C2A',
+                    }}
+                  >
+                    Google Ads Account:{' '}
+                    <span style={{ fontWeight: 600 }}>{selectedAdsAccount.descriptiveName}</span>
+                  </span>
+                  <button
+                    onClick={openAdsPicker}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      fontFamily: 'system-ui, sans-serif',
+                      fontSize: '0.8rem',
+                      color: '#8B4513',
+                      padding: '4px 8px',
+                      borderRadius: '4px',
+                      textDecoration: 'underline',
+                    }}
+                  >
+                    Change
+                  </button>
+                </>
+              ) : (
+                <>
+                  <span
+                    style={{
+                      fontFamily: 'system-ui, sans-serif',
+                      fontSize: '0.85rem',
+                      color: '#B8860B',
+                    }}
+                  >
+                    ⚠ No Google Ads account selected
+                  </span>
+                  <button
+                    onClick={openAdsPicker}
+                    style={{
+                      background: '#FF8C00',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: '6px',
+                      padding: '6px 14px',
+                      fontSize: '0.8rem',
+                      fontFamily: "'Comfortaa', sans-serif",
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Select account
+                  </button>
+                </>
+              )}
+            </div>
+          )}
           </div>
         ))}
       </div>
@@ -1986,6 +2164,228 @@ export function Connections() {
                 }}
               >
                 {fbPageSaving ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {adsPickerOpen && (
+        <div
+          onClick={() => { if (!adsSaving) setAdsPickerOpen(false); }}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0,0,0,0.4)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: '#fff',
+              borderRadius: '16px',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+              maxWidth: '520px',
+              width: '90%',
+              padding: '28px',
+              maxHeight: '80vh',
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+          >
+            <h2
+              style={{
+                fontFamily: "'Comfortaa', sans-serif",
+                fontWeight: 600,
+                color: '#4A2C2A',
+                fontSize: '1.2rem',
+                margin: '0 0 4px 0',
+              }}
+            >
+              Select a Google Ads account
+            </h2>
+            <p
+              style={{
+                fontFamily: 'system-ui, sans-serif',
+                color: '#6B5B5B',
+                fontSize: '0.9rem',
+                margin: '0 0 20px 0',
+              }}
+            >
+              Choose which Google Ads account to use for your dashboard.
+            </p>
+
+            <div style={{ flex: 1, overflowY: 'auto', minHeight: '160px' }}>
+              {adsLoading && (
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '40px 0',
+                    gap: '12px',
+                  }}
+                >
+                  <div
+                    style={{
+                      width: '24px',
+                      height: '24px',
+                      border: '3px solid #E8DCC8',
+                      borderTopColor: '#8B4513',
+                      borderRadius: '50%',
+                      animation: 'adsspin 0.8s linear infinite',
+                    }}
+                  />
+                  <span style={{ color: '#6B5B5B', fontFamily: 'system-ui, sans-serif', fontSize: '0.9rem' }}>
+                    Loading accounts…
+                  </span>
+                  <style>{`@keyframes adsspin { to { transform: rotate(360deg); } }`}</style>
+                </div>
+              )}
+
+              {!adsLoading && adsError && (
+                <div
+                  style={{
+                    padding: '16px',
+                    background: '#FDF2F2',
+                    border: '1px solid #F5C6C6',
+                    borderRadius: '8px',
+                    color: '#C0392B',
+                    fontFamily: 'system-ui, sans-serif',
+                    fontSize: '0.875rem',
+                  }}
+                >
+                  {adsError}
+                </div>
+              )}
+
+              {!adsLoading && !adsError && adsAccounts && adsAccounts.length === 0 && (
+                <p
+                  style={{
+                    color: '#6B5B5B',
+                    fontFamily: 'system-ui, sans-serif',
+                    fontSize: '0.9rem',
+                    textAlign: 'center',
+                    padding: '24px 0',
+                  }}
+                >
+                  No Google Ads accounts found on your Google account.
+                </p>
+              )}
+
+              {!adsLoading && !adsError && adsAccounts && adsAccounts.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {adsAccounts.map((a) => {
+                    const isChecked = adsChoice === a.customerId;
+                    return (
+                      <label
+                        key={a.customerId}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'flex-start',
+                          gap: '12px',
+                          padding: '12px 14px',
+                          border: `1px solid ${isChecked ? '#8B4513' : '#E8DCC8'}`,
+                          borderRadius: '10px',
+                          background: isChecked ? '#FAF5EE' : '#fff',
+                          cursor: 'pointer',
+                          transition: 'border-color 0.15s, background 0.15s',
+                        }}
+                      >
+                        <input
+                          type="radio"
+                          name="google-ads-account"
+                          value={a.customerId}
+                          checked={isChecked}
+                          onChange={() => setAdsChoice(a.customerId)}
+                          style={{ marginTop: '3px', accentColor: '#8B4513' }}
+                        />
+                        <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                          <span
+                            style={{
+                              fontFamily: 'system-ui, sans-serif',
+                              fontWeight: 600,
+                              color: '#4A2C2A',
+                              fontSize: '0.9rem',
+                            }}
+                          >
+                            {a.descriptiveName}
+                          </span>
+                          <span
+                            style={{
+                              fontFamily: 'system-ui, sans-serif',
+                              color: '#6B5B5B',
+                              fontSize: '0.8rem',
+                            }}
+                          >
+                            {a.customerId}
+                          </span>
+                          <span
+                            style={{
+                              fontFamily: 'system-ui, sans-serif',
+                              color: '#6B5B5B',
+                              fontSize: '0.75rem',
+                              marginTop: '2px',
+                            }}
+                          >
+                            {a.currencyCode} · {a.timeZone}
+                          </span>
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'flex-end',
+                gap: '12px',
+                marginTop: '20px',
+              }}
+            >
+              <button
+                onClick={() => setAdsPickerOpen(false)}
+                disabled={adsSaving}
+                style={{
+                  background: 'none',
+                  border: '1px solid #D2B48C',
+                  borderRadius: '8px',
+                  padding: '8px 20px',
+                  fontFamily: 'system-ui, sans-serif',
+                  color: '#4A2C2A',
+                  fontSize: '0.875rem',
+                  cursor: adsSaving ? 'default' : 'pointer',
+                  opacity: adsSaving ? 0.6 : 1,
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={saveAdsAccount}
+                disabled={!adsChoice || adsSaving || adsLoading}
+                style={{
+                  background: '#FF8C00',
+                  border: 'none',
+                  borderRadius: '8px',
+                  padding: '8px 20px',
+                  fontFamily: "'Comfortaa', sans-serif",
+                  fontWeight: 600,
+                  color: '#fff',
+                  fontSize: '0.875rem',
+                  cursor: (!adsChoice || adsSaving || adsLoading) ? 'default' : 'pointer',
+                  opacity: (!adsChoice || adsSaving || adsLoading) ? 0.6 : 1,
+                }}
+              >
+                {adsSaving ? 'Saving…' : 'Save'}
               </button>
             </div>
           </div>

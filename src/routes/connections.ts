@@ -499,6 +499,80 @@ router.get('/google/ads-accounts', async (req: Request, res: Response) => {
   }
 });
 
+// GET /api/connections/google/selected-ads-account?tenant_id={uuid}
+// Returns the Google Ads account the tenant has picked for their Google connection (if any).
+router.get('/google/selected-ads-account', async (req: Request, res: Response) => {
+  const { tenant_id } = req.query;
+
+  if (!tenant_id || typeof tenant_id !== 'string') {
+    return res.status(400).json({ error: 'tenant_id is required' });
+  }
+
+  try {
+    const result = await pool.query(
+      `SELECT selected_google_ads_customer_id,
+              selected_google_ads_account_name,
+              selected_google_ads_currency_code
+       FROM tenant_connections
+       WHERE tenant_id = $1 AND platform = 'google'`,
+      [tenant_id]
+    );
+
+    if (result.rows.length === 0 || !result.rows[0].selected_google_ads_customer_id) {
+      return res.json({ customerId: null, descriptiveName: null, currencyCode: null });
+    }
+
+    return res.json({
+      customerId: result.rows[0].selected_google_ads_customer_id,
+      descriptiveName: result.rows[0].selected_google_ads_account_name,
+      currencyCode: result.rows[0].selected_google_ads_currency_code,
+    });
+  } catch (err) {
+    console.error('Error fetching selected Google Ads account:', err);
+    return res.status(500).json({ error: 'Failed to fetch selected Google Ads account' });
+  }
+});
+
+// POST /api/connections/google/ads-account
+// Body: { tenant_id, customerId, descriptiveName, currencyCode }
+// Stores the Google Ads account the tenant has picked for their Google connection.
+router.post('/google/ads-account', async (req: Request, res: Response) => {
+  const { tenant_id, customerId, descriptiveName, currencyCode } = req.body ?? {};
+
+  if (!tenant_id || typeof tenant_id !== 'string') {
+    return res.status(400).json({ error: 'tenant_id is required' });
+  }
+  if (!customerId || typeof customerId !== 'string') {
+    return res.status(400).json({ error: 'customerId is required' });
+  }
+  if (typeof descriptiveName !== 'string') {
+    return res.status(400).json({ error: 'descriptiveName is required' });
+  }
+  if (typeof currencyCode !== 'string') {
+    return res.status(400).json({ error: 'currencyCode is required' });
+  }
+
+  try {
+    const result = await pool.query(
+      `UPDATE tenant_connections
+       SET selected_google_ads_customer_id = $1,
+           selected_google_ads_account_name = $2,
+           selected_google_ads_currency_code = $3
+       WHERE tenant_id = $4 AND platform = 'google'`,
+      [customerId, descriptiveName, currencyCode, tenant_id]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'No Google connection found for tenant' });
+    }
+
+    return res.json({ success: true });
+  } catch (err) {
+    console.error('Error saving selected Google Ads account:', err);
+    return res.status(500).json({ error: 'Failed to save selected Google Ads account' });
+  }
+});
+
 // GET /api/connections/google/selected-property?tenant_id={uuid}
 // Returns the GA4 property the tenant has picked for their Google connection (if any).
 router.get('/google/selected-property', async (req: Request, res: Response) => {

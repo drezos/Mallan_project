@@ -226,6 +226,24 @@ async function runMultiTenantMigrations(): Promise<void> {
 
   console.log('  ✅ selected_facebook_page_* columns ensured on tenant_connections');
 
+  // 7d. Add selected Google Ads account columns to tenant_connections if not exists
+  await pool.query(`
+    ALTER TABLE tenant_connections
+    ADD COLUMN IF NOT EXISTS selected_google_ads_customer_id VARCHAR(255)
+  `);
+
+  await pool.query(`
+    ALTER TABLE tenant_connections
+    ADD COLUMN IF NOT EXISTS selected_google_ads_account_name VARCHAR(500)
+  `);
+
+  await pool.query(`
+    ALTER TABLE tenant_connections
+    ADD COLUMN IF NOT EXISTS selected_google_ads_currency_code VARCHAR(10)
+  `);
+
+  console.log('  ✅ selected_google_ads_* columns ensured on tenant_connections');
+
   // 8. Create users table
   await pool.query(`
     CREATE TABLE IF NOT EXISTS users (
