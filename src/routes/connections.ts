@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { google } from 'googleapis';
 import axios from 'axios';
+import { GoogleAdsApi } from 'google-ads-api';
 import { pool } from '../db/cache';
 import { invalidateSocialPillarCache } from '../services/facebookSocialPillar';
 
@@ -229,6 +230,199 @@ router.get('/google/search-console-sites', async (req: Request, res: Response) =
     console.error('Error fetching Search Console sites:', err);
     const message = err?.response?.data?.error?.message || err?.message || 'Unknown error';
     return res.status(500).json({ error: `Failed to fetch Search Console sites: ${message}` });
+  }
+});
+
+// GET /api/connections/google/ads-accounts?tenant_id={uuid}
+// Lists Google Ads accounts (customers) accessible to the tenant's connected
+// Google account. Manager accounts are filtered out — only advertising
+// accounts are returned.
+//
+// Required env:
+//   GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET          (for OAuth)
+//   GOOGLE_ADS_DEVELOPER_TOKEN                      (Google Ads API)
+//   GOOGLE_ADS_LOGIN_CUSTOMER_ID                    (Manager account ID used
+//                                                    as login-customer-id on
+//                                                    per-customer GAQL calls)
+router.get('/google/ads-accounts', async (req: Request, res: Response) => {
+  const { tenant_id } = req.query;
+
+  console.log('[googleAdsAccounts] entry', { tenant_id });
+
+  if (!tenant_id || typeof tenant_id !== 'string') {
+    return res.status(400).json({ error: 'tenant_id is required' });
+  }
+
+  try {
+    const result = await pool.query(
+      `SELECT access_token, refresh_token, expires_at
+       FROM tenant_connections
+       WHERE tenant_id = $1 AND platform = 'google'`,
+      [tenant_id]
+    );
+
+    if (result.rows.length === 0 || !result.rows[0].access_token) {
+      return res.status(401).json({ error: 'No Google connection found for tenant' });
+    }
+
+    const { refresh_token, expires_at } = result.rows[0];
+
+    if (!refresh_token) {
+      return res
+        .status(401)
+        .json({ error: 'No Google refresh token available for tenant' });
+    }
+
+    // Proactively refresh the stored access token if expired. The Google Ads
+    // client only needs the refresh_token, but we keep the stored access_token
+    // fresh so subsequent callers (GA4, Search Console) don't hit a stale token.
+    const expiryBufferMs = 5 * 60 * 1000;
+    const isExpired =
+      !expires_at || new Date(expires_at).getTime() <= Date.now() + expiryBufferMs;
+    if (isExpired) {
+      console.log('[googleAdsAccounts] refreshing access token', { tenant_id });
+      await refreshGoogleAccessToken(tenant_id, refresh_token);
+    }
+
+    const clientId = process.env.GOOGLE_CLIENT_ID;
+    const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+    const developerToken = process.env.GOOGLE_ADS_DEVELOPER_TOKEN;
+    const loginCustomerId = process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID;
+
+    if (!clientId || !clientSecret || !developerToken) {
+      return res.status(500).json({
+        error:
+          'Google Ads is not configured on the server (missing GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, or GOOGLE_ADS_DEVELOPER_TOKEN)',
+      });
+    }
+
+    const client = new GoogleAdsApi({
+      client_id: clientId,
+      client_secret: clientSecret,
+      developer_token: developerToken,
+    });
+
+    // 1. List accessible customers (returns resource names like "customers/1234567890").
+    console.log('[googleAdsAccounts] listing accessible customers');
+    let accessibleResourceNames: string[] = [];
+    try {
+      const listResp = await client.listAccessibleCustomers(refresh_token);
+      accessibleResourceNames = listResp?.resource_names ?? [];
+    } catch (listErr: any) {
+      const msg =
+        listErr?.errors?.[0]?.message ||
+        listErr?.message ||
+        'Unknown Google Ads error';
+      console.error('[googleAdsAccounts] listAccessibleCustomers failed:', msg, listErr);
+      if (
+        /developer token/i.test(msg) ||
+        /not approved/i.test(msg) ||
+        /PERMISSION_DENIED/i.test(msg) ||
+        /test access/i.test(msg)
+      ) {
+        return res.status(403).json({
+          error:
+            'Google Ads developer token was rejected. This is likely a Test Access ' +
+            'limitation — the token needs Basic or Standard access approval, or the ' +
+            'connected account must be listed as a test account. Details: ' +
+            msg,
+        });
+      }
+      return res.status(500).json({ error: `Failed to list Google Ads accounts: ${msg}` });
+    }
+
+    const customerIds = accessibleResourceNames
+      .map((rn) => rn.replace(/^customers\//, ''))
+      .filter((id) => id.length > 0);
+
+    console.log(
+      '[googleAdsAccounts] accessible customer count:',
+      customerIds.length
+    );
+
+    // 2. For each customer, fetch metadata via GAQL and filter out manager accounts.
+    const perCustomer = await Promise.all(
+      customerIds.map(async (customerId) => {
+        try {
+          const customer = client.Customer({
+            customer_id: customerId,
+            refresh_token,
+            ...(loginCustomerId ? { login_customer_id: loginCustomerId } : {}),
+          });
+
+          const rows = await customer.query<any[]>(
+            `SELECT
+               customer.id,
+               customer.descriptive_name,
+               customer.currency_code,
+               customer.time_zone,
+               customer.manager
+             FROM customer`
+          );
+
+          const row = rows?.[0];
+          if (!row || !row.customer) {
+            console.warn(
+              '[googleAdsAccounts] no customer row returned for',
+              customerId
+            );
+            return null;
+          }
+
+          const c = row.customer;
+          const isManager = c.manager === true;
+          console.log(
+            '[googleAdsAccounts] fetched',
+            customerId,
+            `name="${c.descriptive_name ?? ''}"`,
+            `manager=${isManager}`
+          );
+
+          if (isManager) {
+            return null;
+          }
+
+          return {
+            customerId: String(c.id ?? customerId),
+            descriptiveName: c.descriptive_name ?? '',
+            currencyCode: c.currency_code ?? '',
+            timeZone: c.time_zone ?? '',
+          };
+        } catch (perErr: any) {
+          const perMsg =
+            perErr?.errors?.[0]?.message ||
+            perErr?.message ||
+            'Unknown Google Ads error';
+          console.error(
+            '[googleAdsAccounts] failed to fetch metadata for',
+            customerId,
+            ':',
+            perMsg
+          );
+          return null;
+        }
+      })
+    );
+
+    const accounts = perCustomer.filter(
+      (a): a is {
+        customerId: string;
+        descriptiveName: string;
+        currencyCode: string;
+        timeZone: string;
+      } => a !== null
+    );
+
+    console.log('[googleAdsAccounts] returning', accounts.length, 'accounts');
+    return res.json(accounts);
+  } catch (err: any) {
+    const msg =
+      err?.errors?.[0]?.message ||
+      err?.response?.data?.error?.message ||
+      err?.message ||
+      'Unknown error';
+    console.error('[googleAdsAccounts] unexpected error:', msg, err);
+    return res.status(500).json({ error: `Failed to fetch Google Ads accounts: ${msg}` });
   }
 });
 
