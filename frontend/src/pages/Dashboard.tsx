@@ -4,7 +4,7 @@ import { useUser } from '@clerk/clerk-react';
 import { RefreshCw, Loader2, WifiOff, Star, Link2, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import { useDashboard } from '../hooks/useDashboard';
 import { useAnalyticsDashboard } from '../hooks/useAnalyticsDashboard';
-import type { AnalyticsDashboardResponse, AdsPlatformMetrics, WebsitePillar, WebsiteMetric, BrandPillar, BrandMetric, SocialPillar, SocialMetric, FacebookPlatform } from '../lib/api';
+import type { AnalyticsDashboardResponse, AdsPlatformMetrics, GoogleAdsPillar, GoogleAdsMetric, WebsitePillar, WebsiteMetric, BrandPillar, BrandMetric, SocialPillar, SocialMetric, FacebookPlatform } from '../lib/api';
 
 type PillarTab = 'ads' | 'social' | 'website' | 'brand';
 
@@ -320,9 +320,82 @@ function AdsTabContent({
       {/* Per-platform breakdown */}
       <div className="space-y-3">
         <h3 className="text-sm font-comfortaa font-semibold text-brew-dark">Platform Breakdown</h3>
-        <PlatformRow name="Google Ads" platform={ads?.google} />
+        <GoogleAdsSection google={ads?.google} />
         <PlatformRow name="Meta Ads" platform={ads?.meta} />
         <PlatformRow name="LinkedIn Ads" platform={ads?.linkedin} />
+      </div>
+    </div>
+  );
+}
+
+function GoogleAdsMetricCell({
+  label,
+  metric,
+  format,
+  invertChange = false,
+}: {
+  label: string;
+  metric: GoogleAdsMetric;
+  format: (v: number) => string;
+  invertChange?: boolean;
+}) {
+  return (
+    <div>
+      <p className="flex items-center gap-1 text-xs text-slate-400 mb-1">
+        <Star className="w-2.5 h-2.5 text-brew-orange/30 flex-shrink-0" aria-hidden="true" />
+        {label}
+      </p>
+      <div className="flex items-baseline gap-2 flex-wrap">
+        <p className="text-lg font-display font-semibold text-brew-dark">{format(metric.current)}</p>
+        <ChangeBadge change={metric.change} invert={invertChange} />
+      </div>
+      <p className="text-xs text-slate-400 mt-0.5">Prev: {format(metric.previous)}</p>
+    </div>
+  );
+}
+
+function GoogleAdsSection({ google }: { google?: GoogleAdsPillar }) {
+  if (!google || google.connected !== true) {
+    return (
+      <div className="card p-4 flex items-center justify-between border-dashed">
+        <span className="text-sm font-medium text-slate-400">Google Ads</span>
+        <Link
+          to="/connections"
+          className="flex items-center gap-1.5 text-xs text-brew-orange/80 hover:text-brew-orange"
+        >
+          <Link2 className="w-3.5 h-3.5" aria-hidden="true" />
+          <span>Connect Google Ads to unlock data</span>
+        </Link>
+      </div>
+    );
+  }
+
+  const currencySymbol = google.currencyCode === 'EUR' ? '€' : google.currencyCode === 'USD' ? '$' : google.currencyCode === 'GBP' ? '£' : '';
+  const fmtCurrency = (v: number) =>
+    `${currencySymbol}${v.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${currencySymbol ? '' : ` ${google.currencyCode}`}`;
+  const fmtNumber = (v: number) => v.toLocaleString('nl-NL');
+  const fmtPercent = (v: number) => `${v.toFixed(2)}%`;
+  const fmtRoas = (v: number) => `${v.toFixed(2)}x`;
+
+  return (
+    <div className="card p-6">
+      <div className="flex items-baseline justify-between mb-4 flex-wrap gap-2">
+        <h3 className="text-sm font-comfortaa font-semibold text-brew-dark">Google Ads</h3>
+        <p className="text-xs text-slate-400">
+          {google.accountName && (
+            <>Account: <span className="text-slate-500">{google.accountName}</span> · </>
+          )}
+          Last 7 days vs previous 7 days
+        </p>
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <GoogleAdsMetricCell label="Spend" metric={google.spend} format={fmtCurrency} />
+        <GoogleAdsMetricCell label="Conversions" metric={google.conversions} format={fmtNumber} />
+        <GoogleAdsMetricCell label="CPA" metric={google.cpa} format={fmtCurrency} invertChange />
+        <GoogleAdsMetricCell label="ROAS" metric={google.roas} format={fmtRoas} />
+        <GoogleAdsMetricCell label="CTR" metric={google.ctr} format={fmtPercent} />
+        <GoogleAdsMetricCell label="Clicks" metric={google.clicks} format={fmtNumber} />
+        <GoogleAdsMetricCell label="Impressions" metric={google.impressions} format={fmtNumber} />
       </div>
     </div>
   );
