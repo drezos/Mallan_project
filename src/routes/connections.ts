@@ -341,79 +341,152 @@ router.get('/google/ads-accounts', async (req: Request, res: Response) => {
     );
 
     // 2. For each customer, fetch metadata via GAQL and filter out manager accounts.
+    //
+    // We try two scopes per customer and keep whichever succeeds:
+    //   a) Manager-scoped: login_customer_id = GOOGLE_ADS_LOGIN_CUSTOMER_ID.
+    //      Works when the customer is linked under our Manager account.
+    //   b) Direct-access:  no login_customer_id set.
+    //      Works when the connected user has direct access to the customer
+    //      (i.e. the customer was returned by listAccessibleCustomers and is
+    //      NOT under our Manager).
+    //
+    // Setting login_customer_id to the Manager for a direct-access account
+    // causes "User doesn't have permission to access customer" errors, so we
+    // must fall back to a no-login_customer_id call in that case.
+    type AccountMeta = {
+      customerId: string;
+      descriptiveName: string;
+      currencyCode: string;
+      timeZone: string;
+    };
+
+    const fetchMeta = async (
+      customerId: string,
+      scope: 'manager' | 'direct'
+    ): Promise<AccountMeta | null | 'skip'> => {
+      const customer = client.Customer({
+        customer_id: customerId,
+        refresh_token,
+        ...(scope === 'manager' && loginCustomerId
+          ? { login_customer_id: loginCustomerId }
+          : {}),
+      });
+
+      const rows = await customer.query<any[]>(
+        `SELECT
+           customer.id,
+           customer.descriptive_name,
+           customer.currency_code,
+           customer.time_zone,
+           customer.manager
+         FROM customer`
+      );
+
+      const row = rows?.[0];
+      if (!row || !row.customer) {
+        console.warn(
+          '[googleAdsAccounts] no customer row returned for',
+          customerId,
+          `(scope=${scope})`
+        );
+        return null;
+      }
+
+      const c = row.customer;
+      const isManager = c.manager === true;
+      console.log(
+        '[googleAdsAccounts] fetched',
+        customerId,
+        `name="${c.descriptive_name ?? ''}"`,
+        `manager=${isManager}`,
+        `scope=${scope}`
+      );
+
+      if (isManager) {
+        return 'skip';
+      }
+
+      return {
+        customerId: String(c.id ?? customerId),
+        descriptiveName: c.descriptive_name ?? '',
+        currencyCode: c.currency_code ?? '',
+        timeZone: c.time_zone ?? '',
+      };
+    };
+
     const perCustomer = await Promise.all(
       customerIds.map(async (customerId) => {
-        try {
-          const customer = client.Customer({
-            customer_id: customerId,
-            refresh_token,
-            ...(loginCustomerId ? { login_customer_id: loginCustomerId } : {}),
-          });
+        // Attempt Manager-scoped first (if we have a Manager configured), then
+        // fall back to direct-access. Keep whichever succeeds.
+        const attempts: Array<'manager' | 'direct'> = loginCustomerId
+          ? ['manager', 'direct']
+          : ['direct'];
 
-          const rows = await customer.query<any[]>(
-            `SELECT
-               customer.id,
-               customer.descriptive_name,
-               customer.currency_code,
-               customer.time_zone,
-               customer.manager
-             FROM customer`
-          );
+        let lastErrMsg: string | null = null;
 
-          const row = rows?.[0];
-          if (!row || !row.customer) {
+        for (const scope of attempts) {
+          try {
+            const meta = await fetchMeta(customerId, scope);
+            if (meta === 'skip') {
+              return null; // manager account — filter out
+            }
+            if (meta) {
+              return meta;
+            }
+            // meta === null: no row; try next scope
+          } catch (perErr: any) {
+            const perMsg =
+              perErr?.errors?.[0]?.message ||
+              perErr?.message ||
+              'Unknown Google Ads error';
+            lastErrMsg = perMsg;
+
+            // Treat deactivated / not-yet-enabled accounts as a normal skip:
+            // there's nothing to fetch and no other scope will help.
+            if (
+              /not yet enabled/i.test(perMsg) ||
+              /deactivated/i.test(perMsg) ||
+              /CUSTOMER_NOT_ENABLED/i.test(perMsg)
+            ) {
+              console.log(
+                '[googleAdsAccounts] skipping',
+                customerId,
+                '(account not enabled / deactivated):',
+                perMsg
+              );
+              return null;
+            }
+
             console.warn(
-              '[googleAdsAccounts] no customer row returned for',
-              customerId
+              '[googleAdsAccounts] metadata fetch attempt failed for',
+              customerId,
+              `(scope=${scope}):`,
+              perMsg
             );
-            return null;
+            // fall through to next scope
           }
-
-          const c = row.customer;
-          const isManager = c.manager === true;
-          console.log(
-            '[googleAdsAccounts] fetched',
-            customerId,
-            `name="${c.descriptive_name ?? ''}"`,
-            `manager=${isManager}`
-          );
-
-          if (isManager) {
-            return null;
-          }
-
-          return {
-            customerId: String(c.id ?? customerId),
-            descriptiveName: c.descriptive_name ?? '',
-            currencyCode: c.currency_code ?? '',
-            timeZone: c.time_zone ?? '',
-          };
-        } catch (perErr: any) {
-          const perMsg =
-            perErr?.errors?.[0]?.message ||
-            perErr?.message ||
-            'Unknown Google Ads error';
-          console.error(
-            '[googleAdsAccounts] failed to fetch metadata for',
-            customerId,
-            ':',
-            perMsg
-          );
-          return null;
         }
+
+        console.error(
+          '[googleAdsAccounts] failed to fetch metadata for',
+          customerId,
+          ':',
+          lastErrMsg ?? 'no data returned'
+        );
+        return null;
       })
     );
 
     const accounts = perCustomer.filter(
-      (a): a is {
-        customerId: string;
-        descriptiveName: string;
-        currencyCode: string;
-        timeZone: string;
-      } => a !== null
+      (a): a is AccountMeta => a !== null
     );
 
-    console.log('[googleAdsAccounts] returning', accounts.length, 'accounts');
+    console.log(
+      '[googleAdsAccounts] returning',
+      accounts.length,
+      'accounts:',
+      accounts.map((a) => a.customerId)
+    );
     return res.json(accounts);
   } catch (err: any) {
     const msg =
