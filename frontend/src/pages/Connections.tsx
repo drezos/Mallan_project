@@ -34,6 +34,12 @@ interface FacebookPage {
   name: string;
   pageAccessToken: string;
   instagramAccountId: string | null;
+  instagramUsername: string | null;
+}
+
+interface FacebookPagesResponse {
+  pages: FacebookPage[];
+  reconnectRequired?: boolean;
 }
 
 interface SelectedFacebookPage {
@@ -342,8 +348,8 @@ export function Connections() {
         const body = await res.json().catch(() => ({}));
         setFbPagesError(body?.error || 'Failed to load Facebook Pages');
       } else {
-        const data: FacebookPage[] = await res.json();
-        setFbPages(data);
+        const data: FacebookPagesResponse = await res.json();
+        setFbPages(data.pages);
       }
     } catch (e: any) {
       setFbPagesError(e?.message || 'Failed to load Facebook Pages');
