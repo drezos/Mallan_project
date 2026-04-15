@@ -22,7 +22,10 @@ const META_SCOPES = [
   'ads_read',
   'pages_show_list',
   'pages_read_engagement',
+  'pages_read_user_content',
   'read_insights',
+  'instagram_basic',
+  'instagram_manage_insights',
 ];
 
 // TODO: Add r_ads, r_ads_reporting when LinkedIn Advertising API is approved

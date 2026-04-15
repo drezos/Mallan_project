@@ -729,21 +729,48 @@ router.get('/meta/facebook-pages', async (req: Request, res: Response) => {
     // (GET /oauth/access_token?grant_type=fb_exchange_token) when we add a
     // dedicated refresh helper. For now we rely on the long-lived token
     // already stored at OAuth time.
+    //
+    // Meta paginates /me/accounts with a default page size of 10. We request
+    // limit=100 so tenants with more than 10 Pages get them all in a single
+    // response (well within Meta's allowed range).
     const response = await axios.get('https://graph.facebook.com/v21.0/me/accounts', {
       params: {
         access_token: accessToken,
-        fields: 'id,name,access_token,instagram_business_account',
+        limit: 100,
+        fields:
+          'id,name,access_token,instagram_business_account{id,username},connected_instagram_account{id,username}',
       },
     });
 
-    const pages = (response.data?.data ?? []).map((page: any) => ({
-      pageId: page.id,
-      name: page.name,
-      pageAccessToken: page.access_token,
-      instagramAccountId: page.instagram_business_account?.id ?? null,
-    }));
+    const rawPages = response.data?.data ?? [];
+    const pages = rawPages.map((page: any) => {
+      // A Page may expose its linked IG account under either field name
+      // depending on how the Page was set up / which Meta API version was
+      // used at link time. Prefer instagram_business_account, fall back to
+      // connected_instagram_account.
+      const ig = page.instagram_business_account ?? page.connected_instagram_account ?? null;
+      return {
+        pageId: page.id,
+        name: page.name,
+        pageAccessToken: page.access_token,
+        instagramAccountId: ig?.id ?? null,
+        instagramUsername: ig?.username ?? null,
+      };
+    });
 
-    return res.json(pages);
+    const igLinkedCount = pages.filter((p: any) => p.instagramAccountId !== null).length;
+    console.log(
+      `[facebookPages] returned ${pages.length} page(s); ${igLinkedCount} have IG linked`
+    );
+
+    // The Meta OAuth scope list was expanded (added instagram_basic,
+    // instagram_manage_insights, pages_read_user_content). Tenants connected
+    // before this change won't have consented to the new scopes, so flag it
+    // here — the frontend can prompt the user to reconnect Meta.
+    return res.json({
+      pages,
+      reconnectRequired: true,
+    });
   } catch (err: any) {
     console.error('Error fetching Facebook Pages:', err);
     const message =
