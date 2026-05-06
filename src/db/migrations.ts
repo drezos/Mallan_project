@@ -321,6 +321,37 @@ async function runMultiTenantMigrations(): Promise<void> {
   `);
 
   console.log('  ✅ north_star and onboarding_complete columns ensured on tenants');
+
+  // 13. Add monthly_ad_budget column to tenant_settings
+  await pool.query(`
+    ALTER TABLE tenant_settings
+    ADD COLUMN IF NOT EXISTS monthly_ad_budget NUMERIC(10,2)
+  `);
+
+  console.log('  ✅ monthly_ad_budget column ensured on tenant_settings');
+
+  // 14. Create report_configs table
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS report_configs (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+      report_type TEXT NOT NULL CHECK (report_type IN ('finance','leadership','sales','internal')),
+      recipients JSONB NOT NULL DEFAULT '[]'::jsonb,
+      schedule_frequency TEXT NOT NULL DEFAULT 'off' CHECK (schedule_frequency IN ('off','weekly','monthly')),
+      schedule_day TEXT,
+      schedule_time TEXT,
+      enabled BOOLEAN NOT NULL DEFAULT false,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE (tenant_id, report_type)
+    )
+  `);
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_report_configs_tenant ON report_configs(tenant_id)
+  `);
+
+  console.log('  ✅ report_configs table created');
   console.log('✅ Multi-tenant schema migrations complete');
 }
 
